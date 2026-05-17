@@ -1,0 +1,41 @@
+use clap::Parser;
+use task::cli::Cli;
+use task::clock::SystemClock;
+use task::commands::{dispatch, SystemTty};
+use task::confirm::StdinPrompt;
+use task::editor::SystemEditor;
+use task::store::Store;
+
+fn main() {
+    let cli = Cli::parse();
+
+    // Restore terminal on panic (important for TUI)
+    let hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let _ = crossterm::terminal::disable_raw_mode();
+        let _ = crossterm::execute!(
+            std::io::stderr(),
+            crossterm::terminal::LeaveAlternateScreen
+        );
+        hook(info);
+    }));
+
+    let db_path = Store::default_path(cli.test);
+    let mut store = match Store::open(&db_path) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("error: {e}");
+            std::process::exit(1);
+        }
+    };
+
+    let clock = SystemClock;
+    let editor = SystemEditor;
+    let prompt = StdinPrompt;
+    let tty = SystemTty;
+
+    if let Err(e) = dispatch(&cli, &mut store, &clock, &editor, &prompt, &tty) {
+        eprintln!("error: {e}");
+        std::process::exit(1);
+    }
+}

@@ -1,0 +1,45 @@
+[package]
+name = "task"
+version = "0.1.0"
+edition = "2021"
+default-run = "task"
+
+[[bin]]
+name = "task"
+path = "src/main.rs"
+
+[[bin]]
+name = "fake-editor"
+path = "tests/support/fake_editor_bin.rs"
+
+[lib]
+name = "task"
+path = "src/lib.rs"
+
+[dependencies]
+heed = { version = "0.20", features = ["read-txn-no-tls"] }
+clap = { version = "4.5", features = ["derive"] }
+chrono = { version = "0.4", features = ["serde"] }
+ratatui = "0.29"
+crossterm = "0.28"
+bincode = "1.3"
+serde_yml = "0.0.12"
+directories = "5"
+tempfile = "3"
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+assert_cmd = "2"
+predicates = "3"
+insta = { version = "1.40", features = ["yaml"] }
+
+[profile.release]
+opt-level = "z"
+lto = true
+strip = true
+panic = "abort"
+codegen-units = 1
+
+[profile.coverage]
+inherits = "dev"
+debug = 2
