@@ -55,7 +55,7 @@ fn complete_marks_task_as_done() {
     task(&scope).args(["add", "Finish report"]).assert().success();
     task(&scope).args(["complete", "1"]).assert().success();
     task(&scope)
-        .args(["list", "done"])
+        .args(["list", "--done"])
         .assert()
         .success()
         .stdout(contains("Finish report"));

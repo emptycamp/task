@@ -3,9 +3,10 @@ pub mod gc;
 pub mod revert;
 pub mod tasks;
 
+use crate::clock::Clock;
 use crate::error::{Error, Result};
 use crate::model::{Task, TaskId};
-use crate::store::revert::{MetaDb, RevertDb, RevertOp};
+use crate::store::revert::{HistoryEntry, MetaDb, RevertDb, RevertOp};
 use crate::store::tasks::TasksDb;
 use directories::ProjectDirs;
 use heed::{Env, EnvOpenOptions};
@@ -16,6 +17,12 @@ pub struct Store {
     tasks_db: TasksDb,
     revert_db: RevertDb,
     meta_db: MetaDb,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClearStats {
+    pub tasks_cleared: u32,
+    pub events_cleared: u32,
 }
 
 impl Store {
@@ -31,7 +38,10 @@ impl Store {
 
         let mut txn = env.write_txn()?;
         let tasks_db = env.create_database(&mut txn, Some("tasks"))?;
-        let revert_db = env.create_database(&mut txn, Some("revert"))?;
+        // Named "history" (not "revert") to keep the new schema separate from any
+        // legacy RevertOp-encoded entries left over from an earlier version. Old data
+        // in "revert" is left in place but ignored.
+        let revert_db = env.create_database(&mut txn, Some("history"))?;
         let meta_db = env.create_database(&mut txn, Some("meta"))?;
         txn.commit()?;
 
@@ -71,10 +81,16 @@ impl Store {
         Ok(task)
     }
 
-    pub fn add_task_with_revert(&mut self, task: Task) -> Result<Task> {
+    pub fn add_task_with_revert(&mut self, task: Task, clock: &dyn Clock) -> Result<Task> {
         let mut txn = self.env.write_txn()?;
         tasks::put(&mut txn, self.tasks_db, &task)?;
-        revert::push(&mut txn, self.revert_db, self.meta_db, RevertOp::Added { id: task.id })?;
+        revert::push(
+            &mut txn,
+            self.revert_db,
+            self.meta_db,
+            RevertOp::Added { id: task.id },
+            clock.now(),
+        )?;
         txn.commit()?;
         Ok(task)
     }
@@ -91,26 +107,59 @@ impl Store {
         Ok(())
     }
 
-    pub fn update_task_with_revert(&mut self, before: Task, after: Task) -> Result<()> {
+    pub fn update_task_with_revert(
+        &mut self,
+        before: Task,
+        after: Task,
+        clock: &dyn Clock,
+    ) -> Result<()> {
         let mut txn = self.env.write_txn()?;
         tasks::put(&mut txn, self.tasks_db, &after)?;
-        revert::push(&mut txn, self.revert_db, self.meta_db, RevertOp::Edited { before })?;
+        revert::push(
+            &mut txn,
+            self.revert_db,
+            self.meta_db,
+            RevertOp::Edited { before },
+            clock.now(),
+        )?;
         txn.commit()?;
         Ok(())
     }
 
-    pub fn soft_delete_task_with_revert(&mut self, before: Task, after: Task) -> Result<()> {
+    pub fn soft_delete_task_with_revert(
+        &mut self,
+        before: Task,
+        after: Task,
+        clock: &dyn Clock,
+    ) -> Result<()> {
         let mut txn = self.env.write_txn()?;
         tasks::put(&mut txn, self.tasks_db, &after)?;
-        revert::push(&mut txn, self.revert_db, self.meta_db, RevertOp::Deleted { before })?;
+        revert::push(
+            &mut txn,
+            self.revert_db,
+            self.meta_db,
+            RevertOp::Deleted { before },
+            clock.now(),
+        )?;
         txn.commit()?;
         Ok(())
     }
 
-    pub fn complete_task_with_revert(&mut self, before: Task, after: Task) -> Result<()> {
+    pub fn complete_task_with_revert(
+        &mut self,
+        before: Task,
+        after: Task,
+        clock: &dyn Clock,
+    ) -> Result<()> {
         let mut txn = self.env.write_txn()?;
         tasks::put(&mut txn, self.tasks_db, &after)?;
-        revert::push(&mut txn, self.revert_db, self.meta_db, RevertOp::Completed { before })?;
+        revert::push(
+            &mut txn,
+            self.revert_db,
+            self.meta_db,
+            RevertOp::Completed { before },
+            clock.now(),
+        )?;
         txn.commit()?;
         Ok(())
     }
@@ -122,19 +171,45 @@ impl Store {
         Ok(())
     }
 
-    pub fn pop_revert(&mut self) -> Result<Option<RevertOp>> {
+    /// Wipe every task and every history event. Irreversible — the caller is
+    /// responsible for getting confirmation first.
+    pub fn clear_all(&mut self) -> Result<ClearStats> {
         let mut txn = self.env.write_txn()?;
-        let op = revert::pop(&mut txn, self.revert_db, self.meta_db)?;
+        let tasks_cleared = self.tasks_db.len(&txn)? as u32;
+        let events_cleared = self.revert_db.len(&txn)? as u32;
+        self.tasks_db.clear(&mut txn)?;
+        self.revert_db.clear(&mut txn)?;
+        self.meta_db.clear(&mut txn)?;
         txn.commit()?;
-        Ok(op)
+        Ok(ClearStats {
+            tasks_cleared,
+            events_cleared,
+        })
     }
 
-    pub fn peek_revert(&self) -> Result<Option<RevertOp>> {
+    pub fn history(&self) -> Result<Vec<(u64, HistoryEntry)>> {
         let txn = self.env.read_txn()?;
-        revert::peek(&txn, self.revert_db)
+        revert::list(&txn, self.revert_db)
     }
 
-    pub fn apply_revert_op(&mut self, op: RevertOp) -> Result<()> {
+    pub fn history_get(&self, id: u64) -> Result<Option<HistoryEntry>> {
+        let txn = self.env.read_txn()?;
+        revert::get(&txn, self.revert_db, id)
+    }
+
+    pub fn history_revert(&mut self, id: u64) -> Result<()> {
+        let entry = self
+            .history_get(id)?
+            .ok_or(Error::HistoryNotFound(id))?;
+        let op = entry.op.clone();
+        self.apply_revert_op(op)?;
+        let mut txn = self.env.write_txn()?;
+        revert::delete(&mut txn, self.revert_db, id)?;
+        txn.commit()?;
+        Ok(())
+    }
+
+    fn apply_revert_op(&mut self, op: RevertOp) -> Result<()> {
         match op {
             RevertOp::Added { id } => {
                 self.hard_delete(id)?;

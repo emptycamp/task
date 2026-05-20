@@ -3,13 +3,13 @@ use task::cli::Cli;
 use task::clock::SystemClock;
 use task::commands::{dispatch, SystemTty};
 use task::confirm::StdinPrompt;
-use task::editor::SystemEditor;
+use task::editor::BuiltinEditor;
 use task::store::Store;
 
 fn main() {
     let cli = Cli::parse();
 
-    // Restore terminal on panic (important for TUI)
+    // Restore terminal on panic (important for TUI / form editor)
     let hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
         let _ = crossterm::terminal::disable_raw_mode();
@@ -30,7 +30,7 @@ fn main() {
     };
 
     let clock = SystemClock;
-    let editor = SystemEditor;
+    let editor = BuiltinEditor;
     let prompt = StdinPrompt;
     let tty = SystemTty;
 

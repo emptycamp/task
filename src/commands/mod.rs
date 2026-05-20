@@ -2,14 +2,14 @@ pub mod add;
 pub mod complete;
 pub mod delete;
 pub mod edit;
+pub mod history;
 pub mod info;
 pub mod list;
-pub mod revert;
 
 use crate::cli::{Cli, Cmd};
 use crate::clock::Clock;
 use crate::confirm::Prompt;
-use crate::editor::EditorLauncher;
+use crate::editor::TaskEditor;
 use crate::error::Result;
 use crate::format::RenderOptions;
 use crate::store::Store;
@@ -32,7 +32,7 @@ pub fn dispatch(
     cli: &Cli,
     store: &mut Store,
     clock: &dyn Clock,
-    editor: &dyn EditorLauncher,
+    editor: &dyn TaskEditor,
     prompt: &dyn Prompt,
     tty: &dyn Tty,
 ) -> Result<()> {
@@ -52,8 +52,9 @@ pub fn dispatch(
             let task = add::run(args, store, clock)?;
             println!("Added task #{}: {}", task.id, task.text);
         }
-        Some(Cmd::List { all, which }) => {
-            let (output, _) = list::run_with_gc_count(store, *all, which.as_deref(), &opts, gc_count)?;
+        Some(Cmd::List { active, completed, deleted, all }) => {
+            let choice = list::resolve_filter(*active, *completed, *deleted, *all);
+            let (output, _) = list::run_with_gc_count(store, choice, &opts, gc_count)?;
             let final_output = list::format_with_footer(&output, gc_count);
             print!("{final_output}");
         }
@@ -73,10 +74,33 @@ pub fn dispatch(
             let output = info::run(*id, store, &opts)?;
             print!("{output}");
         }
-        Some(Cmd::Revert { yes }) => {
-            revert::run(*yes, store, prompt)?;
-            println!("Reverted.");
-        }
+        Some(Cmd::History { list, revert, yes }) => match revert {
+            Some(id) => {
+                let reverted = history::revert(*id, *yes, store, prompt)?;
+                match reverted.len() {
+                    1 => {
+                        let (id, summary) = &reverted[0];
+                        println!("Reverted event #{id}: {summary}");
+                    }
+                    n => {
+                        println!("Reverted {n} events (newest first):");
+                        for (id, summary) in &reverted {
+                            println!("  #{id}  {summary}");
+                        }
+                    }
+                }
+            }
+            None => {
+                // Default to interactive picker on a TTY; fall back to plain listing
+                // when piped/captured (tests, scripts) or when --list is explicit.
+                if *list || !tty.is_tty() {
+                    let output = history::list(store, &opts)?;
+                    print!("{output}");
+                } else {
+                    crate::history_tui::run(store)?;
+                }
+            }
+        },
     }
     Ok(())
 }

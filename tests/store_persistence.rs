@@ -28,7 +28,7 @@ fn completed_tasks_persist() {
     task(&scope).args(["add", "Complete me"]).assert().success();
     task(&scope).args(["complete", "1"]).assert().success();
     task(&scope)
-        .args(["list", "done"])
+        .args(["list", "--done"])
         .assert()
         .success()
         .stdout(contains("Complete me"));

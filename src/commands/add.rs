@@ -47,7 +47,7 @@ pub fn run(args: &[String], store: &mut Store, clock: &dyn Clock) -> Result<Task
         deleted_at: None,
     };
 
-    store.add_task_with_revert(task)
+    store.add_task_with_revert(task, clock)
 }
 
 #[cfg(test)]

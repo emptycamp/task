@@ -10,10 +10,6 @@ fn task(scope: &StoreScope) -> Command {
     cmd
 }
 
-fn fake_editor_path() -> std::path::PathBuf {
-    assert_cmd::cargo::cargo_bin("fake-editor")
-}
-
 #[test]
 fn edit_priority_via_args() {
     let scope = StoreScope::new();
@@ -55,6 +51,16 @@ fn edit_alias_update_works() {
 }
 
 #[test]
+fn create_alias_works() {
+    let scope = StoreScope::new();
+    task(&scope)
+        .args(["create", "Buy milk"])
+        .assert()
+        .success()
+        .stdout(contains("Added task #1"));
+}
+
+#[test]
 fn edit_nonexistent_task_fails() {
     let scope = StoreScope::new();
     task(&scope)
@@ -64,21 +70,15 @@ fn edit_nonexistent_task_fails() {
 }
 
 #[test]
-fn edit_with_fake_editor_updates_task() {
+fn edit_with_form_via_yaml_env_var_updates_task() {
     let scope = StoreScope::new();
     task(&scope).args(["add", "Buy milk"]).assert().success();
 
-    // Get the YAML for task 1, then inject new content via fake-editor
-    let new_content = r#"text: Buy oat milk
-priority: A
-due: 2026-06-01T09:00:00Z
-est: 15m
-"#;
+    let new_content = "text: Buy oat milk\npriority: A\ndue: 2026-06-01T09:00:00Z\nest: 15m\n";
 
     task(&scope)
         .args(["edit", "1"])
-        .env("EDITOR", fake_editor_path())
-        .env("FAKE_EDITOR_CONTENT", new_content)
+        .env("TASK_EDIT_YAML", new_content)
         .assert()
         .success();
 
@@ -87,4 +87,22 @@ est: 15m
         .assert()
         .success()
         .stdout(contains("Buy oat milk"));
+}
+
+#[test]
+fn edit_form_cancel_via_env_var_leaves_task_unchanged() {
+    let scope = StoreScope::new();
+    task(&scope).args(["add", "Original"]).assert().success();
+
+    task(&scope)
+        .args(["edit", "1"])
+        .env("TASK_EDIT_CANCEL", "1")
+        .assert()
+        .success();
+
+    task(&scope)
+        .args(["info", "1"])
+        .assert()
+        .success()
+        .stdout(contains("Original"));
 }

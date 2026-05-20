@@ -11,7 +11,7 @@ pub fn run(id: TaskId, store: &mut Store, clock: &dyn Clock) -> Result<()> {
     let mut after = before.clone();
     after.status = Status::SoftDeleted;
     after.deleted_at = Some(clock.now());
-    store.soft_delete_task_with_revert(before, after)
+    store.soft_delete_task_with_revert(before, after, clock)
 }
 
 #[cfg(test)]

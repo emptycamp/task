@@ -1,6 +1,6 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use task::model::{Priority, Status, Task};
-use task::tui::events::{handle, PendingChange};
+use task::tui::events::{handle, Action, PendingChange};
 use task::tui::App;
 use chrono::Utc;
 use std::collections::HashMap;
@@ -68,8 +68,22 @@ fn set_priority_replaces_existing() {
 }
 
 #[test]
+fn e_returns_edit_action() {
+    let mut app = make_app();
+    let action = handle(&mut app, press(KeyCode::Char('e')));
+    assert_eq!(action, Action::EditTask(1));
+}
+
+#[test]
+fn enter_returns_edit_action() {
+    let mut app = make_app();
+    let action = handle(&mut app, press(KeyCode::Enter));
+    assert_eq!(action, Action::EditTask(1));
+}
+
+#[test]
 fn esc_exits() {
     let mut app = make_app();
-    let quit = handle(&mut app, press(KeyCode::Esc));
-    assert!(quit);
+    let action = handle(&mut app, press(KeyCode::Esc));
+    assert_eq!(action, Action::Quit);
 }

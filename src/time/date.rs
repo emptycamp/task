@@ -5,7 +5,19 @@ use chrono::{DateTime, Datelike, Duration, Local, NaiveDate, TimeZone, Weekday};
 pub fn parse_due(s: &str, now: DateTime<Local>) -> Result<DateTime<Local>> {
     let s = s.trim().to_lowercase();
 
+    if s == "now" {
+        return Ok(now);
+    }
+
+    // Mirror of how relative time is displayed ("in 5m"). Treat the prefix as syntactic
+    // sugar so what the editor seeds into the Due field round-trips cleanly.
+    let s: String = s.strip_prefix("in ").unwrap_or(&s).trim().to_string();
+
     if let Some(dt) = try_keyword(&s, now) {
+        return validate(dt, now);
+    }
+
+    if let Some(dt) = try_iso(&s) {
         return validate(dt, now);
     }
 
@@ -19,6 +31,30 @@ pub fn parse_due(s: &str, now: DateTime<Local>) -> Result<DateTime<Local>> {
 
     let dur = parse_duration(&s)?;
     validate(now + dur, now)
+}
+
+fn try_iso(s: &str) -> Option<DateTime<Local>> {
+    // "YYYY-MM-DD HH:MM" or "YYYY-MM-DDTHH:MM" or "YYYY-MM-DD"
+    let normalized = s.replacen('t', " ", 1);
+    let parts: Vec<&str> = normalized.splitn(2, ' ').collect();
+    let date_part = parts[0];
+    let time_part = parts.get(1).copied().unwrap_or("09:00");
+
+    let date_pieces: Vec<&str> = date_part.split('-').collect();
+    if date_pieces.len() != 3 {
+        return None;
+    }
+    let year: i32 = date_pieces[0].parse().ok()?;
+    let month: u32 = date_pieces[1].parse().ok()?;
+    let day: u32 = date_pieces[2].parse().ok()?;
+
+    let time_pieces: Vec<&str> = time_part.split(':').collect();
+    let hour: u32 = time_pieces.first().and_then(|s| s.parse().ok())?;
+    let minute: u32 = time_pieces.get(1).and_then(|s| s.parse().ok()).unwrap_or(0);
+
+    let date = NaiveDate::from_ymd_opt(year, month, day)?;
+    let naive = date.and_hms_opt(hour, minute, 0)?;
+    Local.from_local_datetime(&naive).single()
 }
 
 fn try_keyword(s: &str, now: DateTime<Local>) -> Option<DateTime<Local>> {

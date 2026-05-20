@@ -1,67 +1,89 @@
-use crate::error::{Error, Result};
-use std::path::Path;
-use std::process::Command;
+use crate::error::Result;
+use crate::model::Task;
+use crate::yaml::from_yaml;
 
-pub trait EditorLauncher {
-    fn launch(&self, path: &Path) -> Result<()>;
+/// A function the editor calls to persist an in-progress version of the task.
+///
+/// Returns the persisted task — for new tasks this includes the assigned ID. The
+/// returned value becomes the new baseline for subsequent saves in the same session.
+pub type Saver<'a> = dyn FnMut(Task) -> Result<Task> + 'a;
+
+pub trait TaskEditor {
+    /// Open an interactive edit session for `task`. The editor may invoke `save` zero or
+    /// more times during the session (`:w`, `:wq`, …). The function returns when the
+    /// user requests to leave the editor; any persistence happened through `save`.
+    fn edit(&self, task: &Task, save: &mut Saver<'_>) -> Result<()>;
 }
 
-pub struct SystemEditor;
+/// Production editor: opens a built-in terminal form (no external program).
+pub struct BuiltinEditor;
 
-impl EditorLauncher for SystemEditor {
-    fn launch(&self, path: &Path) -> Result<()> {
-        let editor = std::env::var("EDITOR")
-            .or_else(|_| std::env::var("VISUAL"))
-            .unwrap_or_else(|_| {
-                if cfg!(windows) {
-                    "notepad".to_string()
-                } else {
-                    "vi".to_string()
-                }
-            });
-
-        let status = Command::new(&editor)
-            .arg(path)
-            .status()
-            .map_err(|e| Error::EditorError(format!("failed to launch '{editor}': {e}")))?;
-
-        if !status.success() {
-            return Err(Error::EditorError(format!(
-                "editor '{editor}' exited with status {status}"
-            )));
+impl TaskEditor for BuiltinEditor {
+    fn edit(&self, task: &Task, save: &mut Saver<'_>) -> Result<()> {
+        if let Ok(yaml) = std::env::var("TASK_EDIT_YAML") {
+            let updated = from_yaml(&yaml, task)?;
+            save(updated)?;
+            return Ok(());
         }
-        Ok(())
+        if std::env::var("TASK_EDIT_CANCEL").is_ok() {
+            return Ok(());
+        }
+        crate::form_editor::run(task, save)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::env;
+    use crate::model::{Priority, Status};
+    use chrono::Utc;
 
-    #[test]
-    fn system_editor_reads_editor_env_var() {
-        let dir = tempfile::tempdir().unwrap();
-        let file = dir.path().join("test.yaml");
-        std::fs::write(&file, "content").unwrap();
-
-        // Use "true" (a no-op command) as the editor
-        env::set_var("EDITOR", "true");
-        let result = SystemEditor.launch(&file);
-        env::remove_var("EDITOR");
-        assert!(result.is_ok());
+    fn make_task() -> Task {
+        Task {
+            id: 1,
+            text: "old text".to_string(),
+            priority: Priority::B,
+            due: Utc::now(),
+            est_secs: 1800,
+            status: Status::Active,
+            created_at: Utc::now(),
+            completed_at: None,
+            deleted_at: None,
+        }
     }
 
     #[test]
-    fn system_editor_falls_back_to_visual_when_editor_unset() {
-        let dir = tempfile::tempdir().unwrap();
-        let file = dir.path().join("test.yaml");
-        std::fs::write(&file, "content").unwrap();
+    fn builtin_editor_yaml_env_var_calls_save_with_parsed_task() {
+        let task = make_task();
+        std::env::set_var(
+            "TASK_EDIT_YAML",
+            "text: new text\npriority: A\ndue: 2026-06-01T09:00:00Z\nest: 15m\n",
+        );
+        let mut saved: Option<Task> = None;
+        BuiltinEditor
+            .edit(&task, &mut |proposed| {
+                saved = Some(proposed.clone());
+                Ok(proposed)
+            })
+            .unwrap();
+        std::env::remove_var("TASK_EDIT_YAML");
+        let saved = saved.expect("save closure should have been called");
+        assert_eq!(saved.text, "new text");
+        assert_eq!(saved.priority, Priority::A);
+    }
 
-        env::remove_var("EDITOR");
-        env::set_var("VISUAL", "true");
-        let result = SystemEditor.launch(&file);
-        env::remove_var("VISUAL");
-        assert!(result.is_ok());
+    #[test]
+    fn builtin_editor_cancel_env_var_does_not_call_save() {
+        let task = make_task();
+        std::env::set_var("TASK_EDIT_CANCEL", "1");
+        let mut called = false;
+        BuiltinEditor
+            .edit(&task, &mut |t| {
+                called = true;
+                Ok(t)
+            })
+            .unwrap();
+        std::env::remove_var("TASK_EDIT_CANCEL");
+        assert!(!called);
     }
 }
