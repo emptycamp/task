@@ -32,7 +32,12 @@ pub fn draw(frame: &mut Frame, app: &App) {
 
     let header_text = format!(
         " {:>w_p$}{:>w_id$}  {:>w_pri$}  {:<w_text$}  {:>w_due$}  {:>w_est$}",
-        "", "ID", "P", "Description", "Due", "Est",
+        "",
+        "ID",
+        "P",
+        "Description",
+        "Due",
+        "Est",
         w_p = PREFIX_W,
         w_id = ID_W,
         w_pri = PRI_W,
@@ -89,7 +94,11 @@ pub fn draw(frame: &mut Frame, app: &App) {
     frame.render_widget(help, chunks[2]);
 }
 
-fn make_day_header(day: chrono::NaiveDate, today: chrono::NaiveDate, width: usize) -> ListItem<'static> {
+fn make_day_header(
+    day: chrono::NaiveDate,
+    today: chrono::NaiveDate,
+    width: usize,
+) -> ListItem<'static> {
     let label = day_label(day, today);
     let mut text = format!("  {label}");
     // Pad so the entire row is the same width — keeps the under-line look consistent.
@@ -112,8 +121,12 @@ fn make_item(
 ) -> ListItem<'static> {
     let changes = pending.get(&task.id).map(|v| v.as_slice()).unwrap_or(&[]);
 
-    let has_complete = changes.iter().any(|c| matches!(c, PendingChange::ToggleComplete(_)));
-    let has_delete = changes.iter().any(|c| matches!(c, PendingChange::ToggleDelete(_)));
+    let has_complete = changes
+        .iter()
+        .any(|c| matches!(c, PendingChange::ToggleComplete(_)));
+    let has_delete = changes
+        .iter()
+        .any(|c| matches!(c, PendingChange::ToggleDelete(_)));
     let pending_priority = changes.iter().find_map(|c| {
         if let PendingChange::SetPriority(_, p) = c {
             Some(*p)
@@ -144,12 +157,7 @@ fn make_item(
 
     // Build everything except the priority letter as plain text; the priority letter
     // is its own styled span so only it carries the colour.
-    let left = format!(
-        " {}{:>w_id$}  ",
-        prefix,
-        task.id,
-        w_id = ID_W,
-    );
+    let left = format!(" {}{:>w_id$}  ", prefix, task.id, w_id = ID_W,);
     let middle = format!(
         "  {:<w_text$}  {:>w_due$}  {:>w_est$}",
         truncate(&task.text, TEXT_W),
@@ -160,8 +168,7 @@ fn make_item(
         w_est = EST_W,
     );
 
-    let mut row_chars =
-        left.chars().count() + 1 /* priority char */ + middle.chars().count();
+    let mut row_chars = left.chars().count() + 1 /* priority char */ + middle.chars().count();
     let mut trailing = String::new();
     while row_chars < width {
         trailing.push(' ');
@@ -181,7 +188,9 @@ fn make_item(
     let line_style = if has_complete {
         Style::default().fg(Color::Green)
     } else if has_delete {
-        Style::default().add_modifier(Modifier::CROSSED_OUT).fg(Color::DarkGray)
+        Style::default()
+            .add_modifier(Modifier::CROSSED_OUT)
+            .fg(Color::DarkGray)
     } else if selected {
         Style::default().fg(Color::White)
     } else {
@@ -204,6 +213,9 @@ fn truncate(s: &str, width: usize) -> String {
     if chars.len() <= width {
         s.to_string()
     } else {
-        format!("{}…", &chars[..width.saturating_sub(1)].iter().collect::<String>())
+        format!(
+            "{}…",
+            &chars[..width.saturating_sub(1)].iter().collect::<String>()
+        )
     }
 }

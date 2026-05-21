@@ -73,19 +73,13 @@ pub fn parse_task_fields(args: &[String], now_local: DateTime<Local>) -> Result<
         match field {
             Field::Priority => {
                 if priority.is_some() {
-                    return Err(Error::Parse(format!(
-                        "duplicate {} field",
-                        field.name()
-                    )));
+                    return Err(Error::Parse(format!("duplicate {} field", field.name())));
                 }
                 priority = Some(parse_priority(rest)?);
             }
             Field::Due => {
                 if due.is_some() {
-                    return Err(Error::Parse(format!(
-                        "duplicate {} field",
-                        field.name()
-                    )));
+                    return Err(Error::Parse(format!("duplicate {} field", field.name())));
                 }
                 let value = rest.trim();
                 if value.is_empty() {
@@ -95,10 +89,7 @@ pub fn parse_task_fields(args: &[String], now_local: DateTime<Local>) -> Result<
             }
             Field::Est => {
                 if est_secs.is_some() {
-                    return Err(Error::Parse(format!(
-                        "duplicate {} field",
-                        field.name()
-                    )));
+                    return Err(Error::Parse(format!("duplicate {} field", field.name())));
                 }
                 let value = rest.trim();
                 if value.is_empty() {

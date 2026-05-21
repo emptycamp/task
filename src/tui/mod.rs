@@ -6,11 +6,11 @@ use crate::clock::Clock;
 use crate::editor::TaskEditor;
 use crate::error::Result;
 use crate::format::sort_key;
-use chrono::Local;
 use crate::model::{Priority, Status, Task, TaskId};
 use crate::store::Store;
 use crate::tui::events::{Action, PendingChange};
 use chrono::Duration;
+use chrono::Local;
 use crossterm::{
     event::{self, Event, KeyEventKind},
     execute,
@@ -105,16 +105,13 @@ fn run_loop(
             Action::Continue => {}
             Action::Quit => return Ok(()),
             Action::EditTask(id) => {
-                let edit_result = with_paused_terminal(terminal, || {
-                    edit_existing(id, store, clock, editor)
-                });
+                let edit_result =
+                    with_paused_terminal(terminal, || edit_existing(id, store, clock, editor));
                 edit_result?;
                 refresh_tasks(app, store)?;
             }
             Action::AddTask => {
-                let add_result = with_paused_terminal(terminal, || {
-                    add_new(store, clock, editor)
-                });
+                let add_result = with_paused_terminal(terminal, || add_new(store, clock, editor));
                 add_result?;
                 refresh_tasks(app, store)?;
             }

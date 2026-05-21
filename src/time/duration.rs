@@ -45,8 +45,7 @@ pub fn parse_duration(s: &str) -> Result<Duration> {
     if !secs.is_finite() || secs > (i64::MAX / 1000) as f64 {
         return Err(Error::Parse("duration too large".into()));
     }
-    Duration::try_seconds(secs as i64)
-        .ok_or_else(|| Error::Parse("duration too large".into()))
+    Duration::try_seconds(secs as i64).ok_or_else(|| Error::Parse("duration too large".into()))
 }
 
 #[cfg(test)]

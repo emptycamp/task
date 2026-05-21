@@ -13,7 +13,10 @@ fn task(scope: &StoreScope) -> Command {
 #[test]
 fn info_shows_task_details() {
     let scope = StoreScope::new();
-    task(&scope).args(["add", "Buy milk", "p:a"]).assert().success();
+    task(&scope)
+        .args(["add", "Buy milk", "p:a"])
+        .assert()
+        .success();
     task(&scope)
         .args(["info", "1"])
         .assert()

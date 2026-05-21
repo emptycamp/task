@@ -28,9 +28,7 @@ Fields you can set inline:
   due:tomorrow | due:fri | ...   when it's due (keyword, weekday, MMMd, duration)
   est:30m | est:1h               estimated effort
 ")]
-    Add {
-        args: Vec<String>,
-    },
+    Add { args: Vec<String> },
     /// List tasks. By default shows only active tasks.
     #[command(visible_aliases = ["ls"])]
     #[command(group(ArgGroup::new("filter").args(["active", "completed", "deleted", "all"]).multiple(false)))]
@@ -80,10 +78,7 @@ Examples:
   task update 3 due:tomorrow est:30m
   task modify 3 p:c                 # alias
 ")]
-    Edit {
-        id: TaskId,
-        args: Vec<String>,
-    },
+    Edit { id: TaskId, args: Vec<String> },
     /// Delete a task (soft delete; can be reverted via history).
     #[command(visible_aliases = ["del", "remove", "rm", "discard", "trash"])]
     #[command(long_about = "\
@@ -97,9 +92,7 @@ Examples:
   task discard 3
   task trash 3
 ")]
-    Delete {
-        id: TaskId,
-    },
+    Delete { id: TaskId },
     /// Mark a task as completed.
     #[command(visible_aliases = ["done", "finish", "finished", "close"])]
     #[command(long_about = "\
@@ -111,9 +104,7 @@ Examples:
   task finish 3
   task close 3
 ")]
-    Complete {
-        id: TaskId,
-    },
+    Complete { id: TaskId },
     /// Show full task details.
     #[command(visible_aliases = ["show", "view", "details"])]
     #[command(long_about = "\
@@ -125,9 +116,7 @@ Examples:
   task view 3
   task details 3
 ")]
-    Info {
-        id: TaskId,
-    },
+    Info { id: TaskId },
     /// Wipe the entire database — every task and every history event.
     #[command(visible_aliases = ["wipe", "nuke", "reset"])]
     #[command(long_about = "\

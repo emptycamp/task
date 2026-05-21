@@ -15,7 +15,10 @@ pub fn apply(
     for (id, changes) in pending {
         let id = *id;
 
-        for change in changes.iter().filter(|c| matches!(c, PendingChange::SetPriority(_, _))) {
+        for change in changes
+            .iter()
+            .filter(|c| matches!(c, PendingChange::SetPriority(_, _)))
+        {
             if let PendingChange::SetPriority(_, priority) = change {
                 let task = store.get_task(id)?;
                 let mut updated = task.clone();
@@ -24,11 +27,17 @@ pub fn apply(
             }
         }
 
-        for _ in changes.iter().filter(|c| matches!(c, PendingChange::ToggleComplete(_))) {
+        for _ in changes
+            .iter()
+            .filter(|c| matches!(c, PendingChange::ToggleComplete(_)))
+        {
             crate::commands::complete::run(id, store, clock)?;
         }
 
-        for _ in changes.iter().filter(|c| matches!(c, PendingChange::ToggleDelete(_))) {
+        for _ in changes
+            .iter()
+            .filter(|c| matches!(c, PendingChange::ToggleDelete(_)))
+        {
             crate::commands::delete::run(id, store, clock)?;
         }
     }

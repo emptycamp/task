@@ -1,9 +1,9 @@
+use chrono::Utc;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use std::collections::HashMap;
 use task::model::{Priority, Status, Task};
 use task::tui::events::{handle, Action, PendingChange};
 use task::tui::App;
-use chrono::Utc;
-use std::collections::HashMap;
 
 fn make_task(id: u32) -> Task {
     Task {
@@ -60,8 +60,14 @@ fn toggle_delete_adds_and_removes() {
 #[test]
 fn set_priority_replaces_existing() {
     let mut app = make_app();
-    handle(&mut app, KeyEvent::new(KeyCode::Char('A'), KeyModifiers::SHIFT));
-    handle(&mut app, KeyEvent::new(KeyCode::Char('C'), KeyModifiers::SHIFT));
+    handle(
+        &mut app,
+        KeyEvent::new(KeyCode::Char('A'), KeyModifiers::SHIFT),
+    );
+    handle(
+        &mut app,
+        KeyEvent::new(KeyCode::Char('C'), KeyModifiers::SHIFT),
+    );
     let changes = &app.pending[&1];
     assert!(!changes.contains(&PendingChange::SetPriority(1, Priority::A)));
     assert!(changes.contains(&PendingChange::SetPriority(1, Priority::C)));

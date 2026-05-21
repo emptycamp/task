@@ -10,8 +10,7 @@ pub struct RenderOptions {
 
 impl RenderOptions {
     pub fn detect() -> Self {
-        let color = std::io::stdout().is_terminal()
-            && std::env::var("NO_COLOR").is_err();
+        let color = std::io::stdout().is_terminal() && std::env::var("NO_COLOR").is_err();
         Self { color }
     }
 
@@ -71,7 +70,12 @@ pub fn format_list(tasks: &[Task], opts: &RenderOptions, mode: ListMode) -> Stri
         groups.last_mut().unwrap().1.push(t);
     }
 
-    let _ = (&mut current_day, &mut shown_in_day, &mut total_in_day, &mut day_tasks);
+    let _ = (
+        &mut current_day,
+        &mut shown_in_day,
+        &mut total_in_day,
+        &mut day_tasks,
+    );
 
     let limit_per_day = match mode {
         ListMode::Compact => Some(4),
@@ -143,8 +147,7 @@ fn day_header(day: NaiveDate, today: NaiveDate, hidden: usize, opts: &RenderOpti
     } else {
         String::new()
     };
-    let pad = DIVIDER_WIDTH
-        .saturating_sub(2 + label.chars().count() + suffix.chars().count());
+    let pad = DIVIDER_WIDTH.saturating_sub(2 + label.chars().count() + suffix.chars().count());
 
     if opts.color {
         let label_styled = format!("{}", label.clone().with(Color::Cyan));
@@ -308,7 +311,12 @@ pub fn format_info(task: &Task, opts: &RenderOptions) -> String {
     let due_relative = format_relative(task.due, now);
 
     let priority_str = if opts.color {
-        format!("{}", task.priority.to_string().with(priority_color(task.priority)))
+        format!(
+            "{}",
+            task.priority
+                .to_string()
+                .with(priority_color(task.priority))
+        )
     } else {
         task.priority.to_string()
     };
@@ -373,7 +381,10 @@ fn truncate(s: &str, width: usize) -> String {
     if chars.len() <= width {
         s.to_string()
     } else {
-        format!("{}…", &chars[..width.saturating_sub(1)].iter().collect::<String>())
+        format!(
+            "{}…",
+            &chars[..width.saturating_sub(1)].iter().collect::<String>()
+        )
     }
 }
 
@@ -486,7 +497,10 @@ mod tests {
         let opts = RenderOptions::no_color();
         let out = format_list(&[past_task], &opts, ListMode::Full);
         assert!(out.contains("Today"), "expected Today header, got:\n{out}");
-        assert!(!out.contains("Yesterday"), "should not show Yesterday for active overdue:\n{out}");
+        assert!(
+            !out.contains("Yesterday"),
+            "should not show Yesterday for active overdue:\n{out}"
+        );
         assert!(out.contains("overdue task"));
     }
 
@@ -500,7 +514,10 @@ mod tests {
         let opts = RenderOptions::no_color();
         let out = format_list(&[t], &opts, ListMode::Full);
         // Should NOT collapse into Today
-        assert!(!out.contains("Today"), "completed should not roll into today:\n{out}");
+        assert!(
+            !out.contains("Today"),
+            "completed should not roll into today:\n{out}"
+        );
     }
 
     #[test]
@@ -529,7 +546,14 @@ mod tests {
     fn format_list_compact_limits_to_4_per_day_and_shows_plus_n() {
         // 6 tasks all on same day.
         let tasks: Vec<Task> = (0..6)
-            .map(|i| make_task(i + 1, &format!("t{i}"), Priority::B, base() + Duration::minutes(i as i64)))
+            .map(|i| {
+                make_task(
+                    i + 1,
+                    &format!("t{i}"),
+                    Priority::B,
+                    base() + Duration::minutes(i as i64),
+                )
+            })
             .collect();
         let opts = RenderOptions::no_color();
         let out = format_list(&tasks, &opts, ListMode::Compact);
@@ -546,7 +570,14 @@ mod tests {
     #[test]
     fn format_list_full_shows_all_tasks() {
         let tasks: Vec<Task> = (0..6)
-            .map(|i| make_task(i + 1, &format!("t{i}"), Priority::B, base() + Duration::minutes(i as i64)))
+            .map(|i| {
+                make_task(
+                    i + 1,
+                    &format!("t{i}"),
+                    Priority::B,
+                    base() + Duration::minutes(i as i64),
+                )
+            })
             .collect();
         let opts = RenderOptions::no_color();
         let out = format_list(&tasks, &opts, ListMode::Full);
@@ -695,7 +726,10 @@ mod tests {
         let mut t = make_task(1, "gone", Priority::B, base());
         t.status = Status::SoftDeleted;
         let row = format_list_row(&t, base(), &opts);
-        assert!(row.contains('✗'), "row should carry a deleted marker: {row}");
+        assert!(
+            row.contains('✗'),
+            "row should carry a deleted marker: {row}"
+        );
     }
 
     #[test]
@@ -704,6 +738,9 @@ mod tests {
         let mut t = make_task(1, "done", Priority::B, base());
         t.status = Status::Completed;
         let row = format_list_row(&t, base(), &opts);
-        assert!(row.contains('✓'), "row should carry a completed marker: {row}");
+        assert!(
+            row.contains('✓'),
+            "row should carry a completed marker: {row}"
+        );
     }
 }

@@ -21,15 +21,30 @@ pub struct FilterChoice {
 
 pub fn resolve_filter(active: bool, completed: bool, deleted: bool, all: bool) -> FilterChoice {
     if all {
-        FilterChoice { filter: Filter::All, explicit: true }
+        FilterChoice {
+            filter: Filter::All,
+            explicit: true,
+        }
     } else if completed {
-        FilterChoice { filter: Filter::Completed, explicit: true }
+        FilterChoice {
+            filter: Filter::Completed,
+            explicit: true,
+        }
     } else if deleted {
-        FilterChoice { filter: Filter::Deleted, explicit: true }
+        FilterChoice {
+            filter: Filter::Deleted,
+            explicit: true,
+        }
     } else if active {
-        FilterChoice { filter: Filter::Active, explicit: true }
+        FilterChoice {
+            filter: Filter::Active,
+            explicit: true,
+        }
     } else {
-        FilterChoice { filter: Filter::Active, explicit: false }
+        FilterChoice {
+            filter: Filter::Active,
+            explicit: false,
+        }
     }
 }
 
@@ -52,7 +67,11 @@ pub fn run_with_gc_count(
 
     // Compact view only applies to the implicit default. Any explicit flag (including
     // --active) shows the full list.
-    let mode = if choice.explicit { ListMode::Full } else { ListMode::Compact };
+    let mode = if choice.explicit {
+        ListMode::Full
+    } else {
+        ListMode::Compact
+    };
     let output = format_list(&filtered, opts, mode);
     Ok((output, gc_count))
 }
@@ -68,7 +87,10 @@ fn matches_filter(status: Status, filter: Filter) -> bool {
 
 pub fn format_with_footer(output: &str, gc_count: u32) -> String {
     if gc_count > 0 {
-        format!("{output}  ({gc_count} task{} aged out)\n", if gc_count == 1 { "" } else { "s" })
+        format!(
+            "{output}  ({gc_count} task{} aged out)\n",
+            if gc_count == 1 { "" } else { "s" }
+        )
     } else {
         output.to_string()
     }
@@ -96,7 +118,10 @@ mod tests {
     }
 
     fn default_choice() -> FilterChoice {
-        FilterChoice { filter: Filter::Active, explicit: false }
+        FilterChoice {
+            filter: Filter::Active,
+            explicit: false,
+        }
     }
 
     #[test]
@@ -120,7 +145,10 @@ mod tests {
         store.add_task(make_task(2, Status::Completed)).unwrap();
 
         let opts = RenderOptions::no_color();
-        let choice = FilterChoice { filter: Filter::Completed, explicit: true };
+        let choice = FilterChoice {
+            filter: Filter::Completed,
+            explicit: true,
+        };
         let (output, _) = run(&store, choice, &opts).unwrap();
         assert!(!output.contains("task 1"));
         assert!(output.contains("task 2"));
@@ -134,7 +162,10 @@ mod tests {
         store.add_task(make_task(2, Status::SoftDeleted)).unwrap();
 
         let opts = RenderOptions::no_color();
-        let choice = FilterChoice { filter: Filter::Deleted, explicit: true };
+        let choice = FilterChoice {
+            filter: Filter::Deleted,
+            explicit: true,
+        };
         let (output, _) = run(&store, choice, &opts).unwrap();
         assert!(!output.contains("task 1"));
         assert!(output.contains("task 2"));
@@ -149,7 +180,10 @@ mod tests {
         store.add_task(make_task(3, Status::SoftDeleted)).unwrap();
 
         let opts = RenderOptions::no_color();
-        let choice = FilterChoice { filter: Filter::All, explicit: true };
+        let choice = FilterChoice {
+            filter: Filter::All,
+            explicit: true,
+        };
         let (output, _) = run(&store, choice, &opts).unwrap();
         assert!(output.contains("task 1"));
         assert!(output.contains("task 2"));
@@ -179,7 +213,10 @@ mod tests {
         }
 
         let opts = RenderOptions::no_color();
-        let choice = FilterChoice { filter: Filter::Active, explicit: true };
+        let choice = FilterChoice {
+            filter: Filter::Active,
+            explicit: true,
+        };
         let (output, _) = run(&store, choice, &opts).unwrap();
         assert!(!output.contains("+"));
     }

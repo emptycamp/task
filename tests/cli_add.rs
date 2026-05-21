@@ -52,16 +52,16 @@ fn add_multiple_tasks_increments_ids() {
 #[test]
 fn add_no_text_returns_error() {
     let scope = StoreScope::new();
-    task(&scope)
-        .args(["add", "p:a"])
-        .assert()
-        .failure();
+    task(&scope).args(["add", "p:a"]).assert().failure();
 }
 
 #[test]
 fn add_appears_in_list() {
     let scope = StoreScope::new();
-    task(&scope).args(["add", "Buy groceries"]).assert().success();
+    task(&scope)
+        .args(["add", "Buy groceries"])
+        .assert()
+        .success();
     task(&scope)
         .args(["list"])
         .assert()

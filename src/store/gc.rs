@@ -11,23 +11,17 @@ pub fn sweep(store: &mut Store, clock: &dyn Clock) -> Result<u32> {
 
     for task in tasks {
         let should_delete = match (task.status, task.priority) {
-            (Status::Active, Priority::C) => {
-                now - task.created_at > Duration::days(3)
-            }
-            (Status::Active, Priority::B) => {
-                now - task.created_at > Duration::days(7)
-            }
+            (Status::Active, Priority::C) => now - task.created_at > Duration::days(3),
+            (Status::Active, Priority::B) => now - task.created_at > Duration::days(7),
             (Status::Active, Priority::A) => false,
-            (Status::Completed, _) => {
-                task.completed_at
-                    .map(|t| now - t > Duration::days(14))
-                    .unwrap_or(false)
-            }
-            (Status::SoftDeleted, _) => {
-                task.deleted_at
-                    .map(|t| now - t > Duration::days(1))
-                    .unwrap_or(false)
-            }
+            (Status::Completed, _) => task
+                .completed_at
+                .map(|t| now - t > Duration::days(14))
+                .unwrap_or(false),
+            (Status::SoftDeleted, _) => task
+                .deleted_at
+                .map(|t| now - t > Duration::days(1))
+                .unwrap_or(false),
         };
 
         if should_delete {
@@ -48,7 +42,12 @@ mod tests {
     use chrono::{TimeZone, Utc};
     use tempfile::tempdir;
 
-    fn make_task(id: u32, priority: Priority, status: Status, created_at: chrono::DateTime<Utc>) -> Task {
+    fn make_task(
+        id: u32,
+        priority: Priority,
+        status: Status,
+        created_at: chrono::DateTime<Utc>,
+    ) -> Task {
         Task {
             id,
             text: format!("task {id}"),

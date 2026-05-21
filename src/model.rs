@@ -114,5 +114,3 @@ mod tests {
         assert_eq!(task, decoded);
     }
 }
-
-

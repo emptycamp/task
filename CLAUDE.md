@@ -13,3 +13,8 @@ You are operating in a **network-isolated environment**.
 - Do not run `git add`, `git reset`, `git restore --staged`, or any other command that stages or unstages files
 - The user manages all staging manually
 - You may still read Git state (e.g., `git status`, `git diff`)
+
+## Code quality
+
+Ensure `cargo fmt --check` passes
+Ensure `cargo build` does not contain any warnings or suggestions

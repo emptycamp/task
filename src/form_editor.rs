@@ -286,11 +286,15 @@ pub fn handle_key(state: &mut State, key: KeyEvent) -> Action {
     }
 
     match (key.code, key.modifiers) {
-        (KeyCode::Char('z'), m) if m.contains(KeyModifiers::CONTROL) && !m.contains(KeyModifiers::SHIFT) => {
+        (KeyCode::Char('z'), m)
+            if m.contains(KeyModifiers::CONTROL) && !m.contains(KeyModifiers::SHIFT) =>
+        {
             state.undo();
             return Action::Continue;
         }
-        (KeyCode::Char('Z'), m) if m.contains(KeyModifiers::CONTROL) && m.contains(KeyModifiers::SHIFT) => {
+        (KeyCode::Char('Z'), m)
+            if m.contains(KeyModifiers::CONTROL) && m.contains(KeyModifiers::SHIFT) =>
+        {
             state.redo();
             return Action::Continue;
         }
@@ -377,7 +381,11 @@ fn execute_command(state: &mut State) -> Action {
 }
 
 fn move_focus(state: &mut State, forward: bool) {
-    state.focus = if forward { state.focus.next() } else { state.focus.prev() };
+    state.focus = if forward {
+        state.focus.next()
+    } else {
+        state.focus.prev()
+    };
     state.due_pristine = matches!(state.focus, Field::Due);
     state.est_pristine = matches!(state.focus, Field::Est);
 }
@@ -587,15 +595,43 @@ fn draw(frame: &mut Frame, state: &State) {
         ])
         .split(inner);
 
-    draw_field(frame, chunks[1], "Text:    ", &state.text, state.focus == Field::Text && state.mode == Mode::Edit, state.text_cursor);
-    draw_priority(frame, chunks[2], state.priority, state.focus == Field::Priority && state.mode == Mode::Edit);
-    draw_field(frame, chunks[3], "Due:     ", &state.due_str, state.focus == Field::Due && state.mode == Mode::Edit, state.due_cursor);
-    draw_field(frame, chunks[4], "Est:     ", &state.est_str, state.focus == Field::Est && state.mode == Mode::Edit, state.est_cursor);
+    draw_field(
+        frame,
+        chunks[1],
+        "Text:    ",
+        &state.text,
+        state.focus == Field::Text && state.mode == Mode::Edit,
+        state.text_cursor,
+    );
+    draw_priority(
+        frame,
+        chunks[2],
+        state.priority,
+        state.focus == Field::Priority && state.mode == Mode::Edit,
+    );
+    draw_field(
+        frame,
+        chunks[3],
+        "Due:     ",
+        &state.due_str,
+        state.focus == Field::Due && state.mode == Mode::Edit,
+        state.due_cursor,
+    );
+    draw_field(
+        frame,
+        chunks[4],
+        "Est:     ",
+        &state.est_str,
+        state.focus == Field::Est && state.mode == Mode::Edit,
+        state.est_cursor,
+    );
 
     let status_line: Line = if state.mode == Mode::Command {
         Line::from(Span::styled(
             format!(" :{}", state.command_buf),
-            Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD),
         ))
     } else if let Some(err) = &state.error {
         Line::from(Span::styled(
@@ -618,7 +654,10 @@ fn draw(frame: &mut Frame, state: &State) {
         " Tab/↑↓ next · Enter next · : command · Ctrl+Z undo · Ctrl+Shift+Z redo "
     };
     frame.render_widget(
-        Paragraph::new(Span::styled(help_text, Style::default().fg(Color::DarkGray))),
+        Paragraph::new(Span::styled(
+            help_text,
+            Style::default().fg(Color::DarkGray),
+        )),
         chunks[8],
     );
 
@@ -628,7 +667,14 @@ fn draw(frame: &mut Frame, state: &State) {
     }
 }
 
-fn draw_field(frame: &mut Frame, area: Rect, label: &str, value: &str, focused: bool, cursor: usize) {
+fn draw_field(
+    frame: &mut Frame,
+    area: Rect,
+    label: &str,
+    value: &str,
+    focused: bool,
+    cursor: usize,
+) {
     let label_span = Span::styled(label.to_string(), Style::default().fg(Color::Cyan));
     let value_style = if focused {
         Style::default()
@@ -639,10 +685,7 @@ fn draw_field(frame: &mut Frame, area: Rect, label: &str, value: &str, focused: 
         Style::default().fg(Color::White)
     };
 
-    let display_width = area
-        .width
-        .saturating_sub(label.chars().count() as u16 + 2)
-        as usize;
+    let display_width = area.width.saturating_sub(label.chars().count() as u16 + 2) as usize;
     let mut padded = value.to_string();
     while padded.chars().count() < display_width {
         padded.push(' ');
@@ -670,7 +713,9 @@ fn draw_priority(frame: &mut Frame, area: Rect, priority: Priority, focused: boo
                 .bg(priority_color(p))
                 .add_modifier(Modifier::BOLD)
         } else if selected {
-            Style::default().fg(priority_color(p)).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(priority_color(p))
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(Color::DarkGray)
         };
@@ -728,9 +773,7 @@ fn run_loop(
     let mut baseline = initial.clone();
     let mut state = State::from_task(&baseline);
     loop {
-        terminal
-            .draw(|f| draw(f, &state))
-            .map_err(Error::Io)?;
+        terminal.draw(|f| draw(f, &state)).map_err(Error::Io)?;
 
         let event = event::read().map_err(Error::Io)?;
         let key = match event {
@@ -867,7 +910,10 @@ mod tests {
     fn colon_wq_signals_save_and_quit() {
         let task = make_task();
         let mut state = State::from_task(&task);
-        handle_key(&mut state, KeyEvent::new(KeyCode::Char(':'), KeyModifiers::NONE));
+        handle_key(
+            &mut state,
+            KeyEvent::new(KeyCode::Char(':'), KeyModifiers::NONE),
+        );
         handle_key(&mut state, key(KeyCode::Char('w')));
         handle_key(&mut state, key(KeyCode::Char('q')));
         let action = handle_key(&mut state, key(KeyCode::Enter));
@@ -878,7 +924,10 @@ mod tests {
     fn colon_w_signals_save() {
         let task = make_task();
         let mut state = State::from_task(&task);
-        handle_key(&mut state, KeyEvent::new(KeyCode::Char(':'), KeyModifiers::NONE));
+        handle_key(
+            &mut state,
+            KeyEvent::new(KeyCode::Char(':'), KeyModifiers::NONE),
+        );
         handle_key(&mut state, key(KeyCode::Char('w')));
         let action = handle_key(&mut state, key(KeyCode::Enter));
         assert!(matches!(action, Action::Save));
@@ -889,7 +938,10 @@ mod tests {
         let task = make_task();
         let mut state = State::from_task(&task);
         handle_key(&mut state, key(KeyCode::Char('!')));
-        handle_key(&mut state, KeyEvent::new(KeyCode::Char(':'), KeyModifiers::NONE));
+        handle_key(
+            &mut state,
+            KeyEvent::new(KeyCode::Char(':'), KeyModifiers::NONE),
+        );
         handle_key(&mut state, key(KeyCode::Char('q')));
         let action = handle_key(&mut state, key(KeyCode::Enter));
         assert!(matches!(action, Action::Continue));
@@ -900,7 +952,10 @@ mod tests {
     fn colon_q_when_clean_cancels() {
         let task = make_task();
         let mut state = State::from_task(&task);
-        handle_key(&mut state, KeyEvent::new(KeyCode::Char(':'), KeyModifiers::NONE));
+        handle_key(
+            &mut state,
+            KeyEvent::new(KeyCode::Char(':'), KeyModifiers::NONE),
+        );
         handle_key(&mut state, key(KeyCode::Char('q')));
         let action = handle_key(&mut state, key(KeyCode::Enter));
         assert!(matches!(action, Action::Cancel));

@@ -264,9 +264,7 @@ impl Store {
     }
 
     pub fn history_revert(&mut self, id: u64) -> Result<()> {
-        let entry = self
-            .history_get(id)?
-            .ok_or(Error::HistoryNotFound(id))?;
+        let entry = self.history_get(id)?.ok_or(Error::HistoryNotFound(id))?;
         let op = entry.op.clone();
         self.apply_revert_op(op)?;
         let mut txn = self.env.write_txn()?;

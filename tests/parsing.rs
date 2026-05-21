@@ -1,5 +1,5 @@
-use task::time::{parse_due, parse_duration};
 use chrono::{Duration, Local, TimeZone};
+use task::time::{parse_due, parse_duration};
 
 fn now() -> chrono::DateTime<Local> {
     Local.with_ymd_and_hms(2026, 5, 17, 10, 0, 0).unwrap()

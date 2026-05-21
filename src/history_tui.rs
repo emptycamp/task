@@ -142,10 +142,7 @@ pub fn run(store: &mut Store) -> Result<()> {
     Ok(())
 }
 
-fn run_loop(
-    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
-    app: &mut App,
-) -> Result<()> {
+fn run_loop(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> Result<()> {
     loop {
         terminal.draw(|f| draw(f, app)).map_err(Error::Io)?;
 
@@ -307,13 +304,7 @@ mod tests {
                         before: baseline.clone(),
                     }
                 };
-                (
-                    *id,
-                    HistoryEntry {
-                        op,
-                        timestamp: now,
-                    },
-                )
+                (*id, HistoryEntry { op, timestamp: now })
             })
             .collect()
     }
@@ -402,11 +393,41 @@ mod tests {
         //   2 → edited #1
         //   1 → added #1
         let entries = vec![
-            (5, HistoryEntry { op: RevertOp::Edited { before: t(2) }, timestamp: now }),
-            (4, HistoryEntry { op: RevertOp::Edited { before: t(1) }, timestamp: now }),
-            (3, HistoryEntry { op: RevertOp::Added { id: 2 }, timestamp: now }),
-            (2, HistoryEntry { op: RevertOp::Edited { before: t(1) }, timestamp: now }),
-            (1, HistoryEntry { op: RevertOp::Added { id: 1 }, timestamp: now }),
+            (
+                5,
+                HistoryEntry {
+                    op: RevertOp::Edited { before: t(2) },
+                    timestamp: now,
+                },
+            ),
+            (
+                4,
+                HistoryEntry {
+                    op: RevertOp::Edited { before: t(1) },
+                    timestamp: now,
+                },
+            ),
+            (
+                3,
+                HistoryEntry {
+                    op: RevertOp::Added { id: 2 },
+                    timestamp: now,
+                },
+            ),
+            (
+                2,
+                HistoryEntry {
+                    op: RevertOp::Edited { before: t(1) },
+                    timestamp: now,
+                },
+            ),
+            (
+                1,
+                HistoryEntry {
+                    op: RevertOp::Added { id: 1 },
+                    timestamp: now,
+                },
+            ),
         ];
         let mut app = App::from_entries(entries);
 
@@ -450,10 +471,34 @@ mod tests {
         // History (newest-first): event 4 edits task #1, event 3 adds task #2,
         // event 2 edits task #1, event 1 adds task #1.
         let entries = vec![
-            (4, HistoryEntry { op: RevertOp::Edited { before: t(1) }, timestamp: now }),
-            (3, HistoryEntry { op: RevertOp::Added { id: 2 }, timestamp: now }),
-            (2, HistoryEntry { op: RevertOp::Edited { before: t(1) }, timestamp: now }),
-            (1, HistoryEntry { op: RevertOp::Added { id: 1 }, timestamp: now }),
+            (
+                4,
+                HistoryEntry {
+                    op: RevertOp::Edited { before: t(1) },
+                    timestamp: now,
+                },
+            ),
+            (
+                3,
+                HistoryEntry {
+                    op: RevertOp::Added { id: 2 },
+                    timestamp: now,
+                },
+            ),
+            (
+                2,
+                HistoryEntry {
+                    op: RevertOp::Edited { before: t(1) },
+                    timestamp: now,
+                },
+            ),
+            (
+                1,
+                HistoryEntry {
+                    op: RevertOp::Added { id: 1 },
+                    timestamp: now,
+                },
+            ),
         ];
         let mut app = App::from_entries(entries);
         // Anchor on event 1 (add task #1).
@@ -464,6 +509,9 @@ mod tests {
         assert!(app.is_marked(4));
         assert!(app.is_marked(2));
         assert!(app.is_marked(1));
-        assert!(!app.is_marked(3), "task #2 event should not be in the cascade");
+        assert!(
+            !app.is_marked(3),
+            "task #2 event should not be in the cascade"
+        );
     }
 }

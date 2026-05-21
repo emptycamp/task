@@ -65,12 +65,7 @@ fn run_form(
         // of "baseline" may be stale if another process touched the task in the
         // meantime, and we want the recorded `before` to match what we're actually
         // overwriting.
-        store.mutate_task(
-            id,
-            MutateKind::Edit,
-            |_current| Ok(proposed.clone()),
-            clock,
-        )
+        store.mutate_task(id, MutateKind::Edit, |_current| Ok(proposed.clone()), clock)
     };
     editor.edit(&task, &mut save)
 }
@@ -156,7 +151,14 @@ mod tests {
         let clock = make_clock();
         let mut t = make_task(1);
         t.priority = Priority::A;
-        run(1, &["p:a".to_string()], &mut store, &clock, &SaveOnceEditor { replacement: t }).unwrap();
+        run(
+            1,
+            &["p:a".to_string()],
+            &mut store,
+            &clock,
+            &SaveOnceEditor { replacement: t },
+        )
+        .unwrap();
         let updated = store.get_task(1).unwrap();
         assert_eq!(updated.priority, Priority::A);
     }
@@ -167,7 +169,14 @@ mod tests {
         let mut store = Store::open(dir.path()).unwrap();
         store.add_task(make_task(1)).unwrap();
         let clock = make_clock();
-        run(1, &["new text".to_string()], &mut store, &clock, &CancelEditor).unwrap();
+        run(
+            1,
+            &["new text".to_string()],
+            &mut store,
+            &clock,
+            &CancelEditor,
+        )
+        .unwrap();
         let updated = store.get_task(1).unwrap();
         assert_eq!(updated.text, "new text");
     }

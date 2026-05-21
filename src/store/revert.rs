@@ -23,9 +23,15 @@ impl RevertOp {
     pub fn summary(&self) -> String {
         match self {
             RevertOp::Added { id } => format!("added #{id}"),
-            RevertOp::Edited { before } => format!("edited #{} ({})", before.id, truncate(&before.text, 30)),
-            RevertOp::Deleted { before } => format!("deleted #{} ({})", before.id, truncate(&before.text, 30)),
-            RevertOp::Completed { before } => format!("completed #{} ({})", before.id, truncate(&before.text, 30)),
+            RevertOp::Edited { before } => {
+                format!("edited #{} ({})", before.id, truncate(&before.text, 30))
+            }
+            RevertOp::Deleted { before } => {
+                format!("deleted #{} ({})", before.id, truncate(&before.text, 30))
+            }
+            RevertOp::Completed { before } => {
+                format!("completed #{} ({})", before.id, truncate(&before.text, 30))
+            }
         }
     }
 
@@ -47,7 +53,10 @@ fn truncate(s: &str, width: usize) -> String {
     if chars.len() <= width {
         s.to_string()
     } else {
-        format!("{}...", &chars[..width.saturating_sub(3)].iter().collect::<String>())
+        format!(
+            "{}...",
+            &chars[..width.saturating_sub(3)].iter().collect::<String>()
+        )
     }
 }
 
@@ -92,10 +101,7 @@ fn prune(txn: &mut RwTxn<'_>, revert_db: RevertDb) -> Result<()> {
 }
 
 pub fn list(txn: &RoTxn<'_>, revert_db: RevertDb) -> Result<Vec<(u64, HistoryEntry)>> {
-    revert_db
-        .iter(txn)?
-        .map(|r| r.map_err(Error::Db))
-        .collect()
+    revert_db.iter(txn)?.map(|r| r.map_err(Error::Db)).collect()
 }
 
 pub fn get(txn: &RoTxn<'_>, revert_db: RevertDb, id: u64) -> Result<Option<HistoryEntry>> {
@@ -150,7 +156,16 @@ mod tests {
         let now = Utc::now();
         let mut txn = env.write_txn().unwrap();
         push(&mut txn, rdb, mdb, RevertOp::Added { id: 1 }, now).unwrap();
-        push(&mut txn, rdb, mdb, RevertOp::Deleted { before: make_task(2) }, now).unwrap();
+        push(
+            &mut txn,
+            rdb,
+            mdb,
+            RevertOp::Deleted {
+                before: make_task(2),
+            },
+            now,
+        )
+        .unwrap();
         txn.commit().unwrap();
 
         let txn = env.read_txn().unwrap();
@@ -203,7 +218,9 @@ mod tests {
 
     #[test]
     fn summary_edited_includes_text() {
-        let op = RevertOp::Edited { before: make_task(7) };
+        let op = RevertOp::Edited {
+            before: make_task(7),
+        };
         assert!(op.summary().contains("edited #7"));
         assert!(op.summary().contains("task 7"));
     }

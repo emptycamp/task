@@ -213,15 +213,11 @@ fn try_month_day(s: &str, now: DateTime<Local>) -> TryResult {
                         .and_then(|d| d.and_hms_opt(9, 0, 0))
                         .and_then(|ndt| Local.from_local_datetime(&ndt).single())
                         .ok_or_else(|| {
-                            Error::Parse(format!(
-                                "invalid date '{name} {day}' next year"
-                            ))
+                            Error::Parse(format!("invalid date '{name} {day}' next year"))
                         });
                     TryResult::Match(next)
                 }
-                None => TryResult::Match(Err(Error::Parse(format!(
-                    "invalid date '{name} {day}'"
-                )))),
+                None => TryResult::Match(Err(Error::Parse(format!("invalid date '{name} {day}'")))),
             };
         }
     }
@@ -231,9 +227,7 @@ fn try_month_day(s: &str, now: DateTime<Local>) -> TryResult {
 fn validate(dt: DateTime<Local>, now: DateTime<Local>) -> Result<DateTime<Local>> {
     let limit = now + Duration::days(366);
     if dt > limit {
-        return Err(Error::Parse(
-            "due date must be within 12 months".into(),
-        ));
+        return Err(Error::Parse("due date must be within 12 months".into()));
     }
     Ok(dt)
 }
@@ -276,7 +270,10 @@ mod tests {
             )
             .unwrap();
         let due = parse_due("today", now).unwrap();
-        assert!(due > now, "due must be in the future, got {due} (now={now})");
+        assert!(
+            due > now,
+            "due must be in the future, got {due} (now={now})"
+        );
     }
 
     #[test]

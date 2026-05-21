@@ -65,8 +65,12 @@ fn history_when_column_is_relative() {
     let has_relative = stdout.contains("just now") || stdout.contains("ago");
     assert!(has_relative, "expected relative When, got:\n{stdout}");
     // No YYYY-MM-DD format remains.
-    let has_absolute = stdout.contains("2026-") || stdout.contains("2025-") || stdout.contains("2027-");
-    assert!(!has_absolute, "expected no absolute timestamps, got:\n{stdout}");
+    let has_absolute =
+        stdout.contains("2026-") || stdout.contains("2025-") || stdout.contains("2027-");
+    assert!(
+        !has_absolute,
+        "expected no absolute timestamps, got:\n{stdout}"
+    );
 }
 
 #[test]
@@ -101,7 +105,13 @@ fn history_revert_restores_deleted_task() {
     let event_id = stdout
         .lines()
         .find(|l| l.contains("deleted"))
-        .and_then(|l| l.trim_start().split_whitespace().next()?.parse::<u64>().ok())
+        .and_then(|l| {
+            l.trim_start()
+                .split_whitespace()
+                .next()?
+                .parse::<u64>()
+                .ok()
+        })
         .expect("expected a deleted event");
 
     task(&scope)
@@ -127,7 +137,13 @@ fn history_revert_complete_restores_to_active() {
     let event_id = stdout
         .lines()
         .find(|l| l.contains("completed"))
-        .and_then(|l| l.trim_start().split_whitespace().next()?.parse::<u64>().ok())
+        .and_then(|l| {
+            l.trim_start()
+                .split_whitespace()
+                .next()?
+                .parse::<u64>()
+                .ok()
+        })
         .expect("expected a completed event");
 
     task(&scope)
@@ -215,7 +231,13 @@ fn history_revert_independent_tasks_do_not_cascade() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     let oldest_id = stdout
         .lines()
-        .filter_map(|line| line.trim_start().split_whitespace().next()?.parse::<u64>().ok())
+        .filter_map(|line| {
+            line.trim_start()
+                .split_whitespace()
+                .next()?
+                .parse::<u64>()
+                .ok()
+        })
         .min()
         .expect("expected at least one event");
 
@@ -262,10 +284,7 @@ fn history_revert_cascades_through_same_task_only() {
         .success()
         .stdout(contains("second"));
     // Task #1 gone (the cascade removed all three of its events).
-    task(&scope)
-        .args(["info", "1"])
-        .assert()
-        .failure();
+    task(&scope).args(["info", "1"]).assert().failure();
 }
 
 #[test]
@@ -278,7 +297,13 @@ fn history_revert_latest_only_reverts_one() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     let latest_id = stdout
         .lines()
-        .filter_map(|line| line.trim_start().split_whitespace().next()?.parse::<u64>().ok())
+        .filter_map(|line| {
+            line.trim_start()
+                .split_whitespace()
+                .next()?
+                .parse::<u64>()
+                .ok()
+        })
         .max()
         .expect("expected at least one event");
 

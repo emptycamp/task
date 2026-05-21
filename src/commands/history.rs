@@ -89,10 +89,7 @@ fn confirm_message(cascade: &[(u64, HistoryEntry)]) -> String {
         return format!("Revert event #{id} ({})?", e.op.summary());
     }
     // All entries in the cascade share the same task id by construction.
-    let task_id = cascade
-        .first()
-        .map(|(_, e)| e.op.task_id())
-        .unwrap_or(0);
+    let task_id = cascade.first().map(|(_, e)| e.op.task_id()).unwrap_or(0);
     let mut msg = format!(
         "Reverting an older event rolls back every newer event on the same task.\n\
          This will revert {} events on task #{task_id} (newest first):\n",
@@ -174,7 +171,11 @@ mod tests {
         let oldest_id = entries.iter().map(|(id, _)| *id).min().unwrap();
 
         let result = revert(oldest_id, true, &mut store, &AutoConfirm).unwrap();
-        assert_eq!(result.len(), 1, "cascade should be scoped to the target task");
+        assert_eq!(
+            result.len(),
+            1,
+            "cascade should be scoped to the target task"
+        );
         assert!(store.get_task(1).is_err());
         // Tasks #2 and #3 untouched — they're independent.
         assert!(store.get_task(2).is_ok());
@@ -218,7 +219,10 @@ mod tests {
         // Cascade: complete-#1, edit-#1, add-#1 (3 events on task #1). Add-#2 untouched.
         assert_eq!(result.len(), 3);
         assert!(store.get_task(1).is_err(), "task #1 should be fully gone");
-        assert!(store.get_task(2).is_ok(), "task #2 was never part of the cascade");
+        assert!(
+            store.get_task(2).is_ok(),
+            "task #2 was never part of the cascade"
+        );
     }
 
     #[test]
@@ -288,14 +292,18 @@ mod tests {
             (
                 9,
                 HistoryEntry {
-                    op: crate::store::revert::RevertOp::Completed { before: make_task(1) },
+                    op: crate::store::revert::RevertOp::Completed {
+                        before: make_task(1),
+                    },
                     timestamp: now,
                 },
             ),
             (
                 8,
                 HistoryEntry {
-                    op: crate::store::revert::RevertOp::Edited { before: make_task(1) },
+                    op: crate::store::revert::RevertOp::Edited {
+                        before: make_task(1),
+                    },
                     timestamp: now,
                 },
             ),

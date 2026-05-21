@@ -14,10 +14,7 @@ fn task(scope: &StoreScope) -> Command {
 fn edit_priority_via_args() {
     let scope = StoreScope::new();
     task(&scope).args(["add", "Read book"]).assert().success();
-    task(&scope)
-        .args(["edit", "1", "p:a"])
-        .assert()
-        .success();
+    task(&scope).args(["edit", "1", "p:a"]).assert().success();
     task(&scope)
         .args(["info", "1"])
         .assert()
@@ -44,10 +41,7 @@ fn edit_text_via_args() {
 fn edit_alias_update_works() {
     let scope = StoreScope::new();
     task(&scope).args(["add", "Task"]).assert().success();
-    task(&scope)
-        .args(["update", "1", "p:c"])
-        .assert()
-        .success();
+    task(&scope).args(["update", "1", "p:c"]).assert().success();
 }
 
 #[test]
@@ -63,10 +57,7 @@ fn create_alias_works() {
 #[test]
 fn edit_nonexistent_task_fails() {
     let scope = StoreScope::new();
-    task(&scope)
-        .args(["edit", "99", "p:a"])
-        .assert()
-        .failure();
+    task(&scope).args(["edit", "99", "p:a"]).assert().failure();
 }
 
 #[test]

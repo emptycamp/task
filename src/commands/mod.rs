@@ -13,8 +13,8 @@ use crate::confirm::Prompt;
 use crate::editor::TaskEditor;
 use crate::error::Result;
 use crate::format::RenderOptions;
-use crate::store::Store;
 use crate::store::gc;
+use crate::store::Store;
 use crate::tui;
 
 pub trait Tty {
@@ -57,7 +57,12 @@ pub fn dispatch(
                 crate::format::sanitize_for_terminal(&task.text),
             );
         }
-        Some(Cmd::List { active, completed, deleted, all }) => {
+        Some(Cmd::List {
+            active,
+            completed,
+            deleted,
+            all,
+        }) => {
             let choice = list::resolve_filter(*active, *completed, *deleted, *all);
             let (output, _) = list::run_with_gc_count(store, choice, &opts, gc_count)?;
             let final_output = list::format_with_footer(&output, gc_count);

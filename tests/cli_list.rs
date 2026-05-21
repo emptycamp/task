@@ -23,10 +23,7 @@ fn list_empty_store_shows_no_tasks() {
 #[test]
 fn list_alias_ls_works() {
     let scope = StoreScope::new();
-    task(&scope)
-        .args(["ls"])
-        .assert()
-        .success();
+    task(&scope).args(["ls"]).assert().success();
 }
 
 #[test]
@@ -135,7 +132,10 @@ fn list_all_shows_active_completed_and_deleted() {
     let scope = StoreScope::new();
     task(&scope).args(["add", "Active task"]).assert().success();
     task(&scope).args(["add", "Done task"]).assert().success();
-    task(&scope).args(["add", "Trashed task"]).assert().success();
+    task(&scope)
+        .args(["add", "Trashed task"])
+        .assert()
+        .success();
     task(&scope).args(["complete", "2"]).assert().success();
     task(&scope).args(["delete", "3"]).assert().success();
     task(&scope)
