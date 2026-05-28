@@ -29,7 +29,7 @@ pub fn run(id: TaskId, store: &mut Store, clock: &dyn Clock) -> Result<()> {
 mod tests {
     use super::*;
     use crate::clock::FakeClock;
-    use crate::model::{Priority, Status, Task};
+    use crate::model::{Category, Status, Task};
     use chrono::{TimeZone, Utc};
     use tempfile::tempdir;
 
@@ -38,14 +38,16 @@ mod tests {
     }
 
     fn make_task(id: u32) -> Task {
+        let now = Utc::now();
         Task {
             id,
             text: format!("task {id}"),
-            priority: Priority::B,
-            due: Utc::now(),
+            category: Category::B,
+            ord: id,
             est_secs: 1800,
             status: Status::Active,
-            created_at: Utc::now(),
+            created_at: now,
+            updated_at: now,
             completed_at: None,
             deleted_at: None,
         }
@@ -80,7 +82,6 @@ mod tests {
         task.deleted_at = Some(Utc::now());
         store.add_task(task).unwrap();
         let clock = make_clock();
-        // H5: silently returning Ok on no-op was misleading; it now errors.
         let err = run(1, &mut store, &clock).unwrap_err();
         assert!(format!("{err}").contains("already deleted"));
     }

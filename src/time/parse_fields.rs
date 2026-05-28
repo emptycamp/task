@@ -1,42 +1,32 @@
-//! Shared parser for the `p:` / `due:` / `est:` inline fields used by both `task add`
-//! and `task edit`.
-//!
-//! Centralizing this here gives us:
-//! - case-insensitive field prefixes (`P:` / `Due:` / `EST:` all work)
-//! - duplicate-field detection (`p:a p:b` errors instead of silently keeping the last)
-//! - trimming + non-empty validation on the text portion
-//! - one place to improve error messages (e.g. distinguishing empty priority from a
-//!   priority typo)
+//! Shared parser for the `c:` / `ord:` / `est:` inline fields used by both `task add`
+//! and `task edit`. The `c:` prefix is the category (A/B/C); we also accept `p:`
+//! as a legacy alias so muscle memory keeps working after the rename.
 
 use crate::error::{Error, Result};
-use crate::model::Priority;
-use crate::time::{parse_due, parse_duration};
-use chrono::{DateTime, Local};
+use crate::model::Category;
+use crate::time::parse_duration;
 
 #[derive(Debug)]
 pub struct ParsedFields {
     /// Trimmed task text, joined from positional args with single spaces. `None` when
     /// the caller didn't supply any text tokens (used by `edit` to leave text alone).
     pub text: Option<String>,
-    pub priority: Option<Priority>,
-    pub due: Option<DateTime<Local>>,
+    pub category: Option<Category>,
+    pub ord: Option<u32>,
     pub est_secs: Option<i64>,
 }
 
-/// Recognise the three field prefixes, case-insensitively. Returns the suffix or
-/// `None` if `arg` is a plain text token.
-fn strip_field_prefix<'a>(arg: &'a str) -> Option<(Field, &'a str)> {
-    // We can't use `to_lowercase` on the whole arg because we need to keep the value
-    // unchanged (priority values *are* case-insensitive, but due:/est: values may be
-    // case-sensitive — e.g. ISO month-day "Jun15"). So check the first 3-4 bytes.
+fn strip_field_prefix(arg: &str) -> Option<(Field, &str)> {
     let (head, rest) = match arg.find(':') {
         Some(idx) => (&arg[..idx], &arg[idx + 1..]),
         None => return None,
     };
     let head_lower = head.to_ascii_lowercase();
     match head_lower.as_str() {
-        "p" => Some((Field::Priority, rest)),
-        "due" => Some((Field::Due, rest)),
+        // `p:` is the pre-rename alias — kept so existing scripts and notes
+        // don't break. `c:` and `cat:` / `category:` are the current spellings.
+        "c" | "cat" | "category" | "p" => Some((Field::Category, rest)),
+        "ord" | "order" => Some((Field::Ord, rest)),
         "est" => Some((Field::Est, rest)),
         _ => None,
     }
@@ -44,25 +34,25 @@ fn strip_field_prefix<'a>(arg: &'a str) -> Option<(Field, &'a str)> {
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum Field {
-    Priority,
-    Due,
+    Category,
+    Ord,
     Est,
 }
 
 impl Field {
     fn name(self) -> &'static str {
         match self {
-            Field::Priority => "p:",
-            Field::Due => "due:",
+            Field::Category => "c:",
+            Field::Ord => "ord:",
             Field::Est => "est:",
         }
     }
 }
 
-pub fn parse_task_fields(args: &[String], now_local: DateTime<Local>) -> Result<ParsedFields> {
+pub fn parse_task_fields(args: &[String]) -> Result<ParsedFields> {
     let mut text_parts: Vec<&str> = Vec::new();
-    let mut priority: Option<Priority> = None;
-    let mut due: Option<DateTime<Local>> = None;
+    let mut category: Option<Category> = None;
+    let mut ord: Option<u32> = None;
     let mut est_secs: Option<i64> = None;
 
     for arg in args {
@@ -71,21 +61,29 @@ pub fn parse_task_fields(args: &[String], now_local: DateTime<Local>) -> Result<
             continue;
         };
         match field {
-            Field::Priority => {
-                if priority.is_some() {
+            Field::Category => {
+                if category.is_some() {
                     return Err(Error::Parse(format!("duplicate {} field", field.name())));
                 }
-                priority = Some(parse_priority(rest)?);
+                category = Some(parse_category(rest)?);
             }
-            Field::Due => {
-                if due.is_some() {
+            Field::Ord => {
+                if ord.is_some() {
                     return Err(Error::Parse(format!("duplicate {} field", field.name())));
                 }
                 let value = rest.trim();
                 if value.is_empty() {
-                    return Err(Error::Parse("due: value is required".into()));
+                    return Err(Error::Parse("ord: value is required".into()));
                 }
-                due = Some(parse_due(value, now_local)?);
+                let n: u32 = value.parse().map_err(|_| {
+                    Error::Parse(format!(
+                        "invalid ord '{value}', expected a positive integer"
+                    ))
+                })?;
+                if n == 0 {
+                    return Err(Error::Parse("ord must be >= 1".into()));
+                }
+                ord = Some(n);
             }
             Field::Est => {
                 if est_secs.is_some() {
@@ -113,22 +111,20 @@ pub fn parse_task_fields(args: &[String], now_local: DateTime<Local>) -> Result<
 
     Ok(ParsedFields {
         text,
-        priority,
-        due,
+        category,
+        ord,
         est_secs,
     })
 }
 
-fn parse_priority(value: &str) -> Result<Priority> {
+fn parse_category(value: &str) -> Result<Category> {
     let trimmed = value.trim();
     if trimmed.is_empty() {
-        return Err(Error::Parse("p: value is required (A, B, or C)".into()));
+        return Err(Error::Parse("c: value is required (A, B, or C)".into()));
     }
-    // Reject `p:a:b` and similar — the colon-split caller already grabbed `a:b text`
-    // as the value, which produces confusing downstream errors.
     if trimmed.contains(':') || trimmed.contains(char::is_whitespace) {
         return Err(Error::Parse(format!(
-            "invalid priority '{trimmed}', expected A, B, or C"
+            "invalid category '{trimmed}', expected A, B, or C"
         )));
     }
     trimmed.parse().map_err(Error::Parse)
@@ -137,22 +133,10 @@ fn parse_priority(value: &str) -> Result<Priority> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::TimeZone;
-
-    fn now() -> DateTime<Local> {
-        Local
-            .from_local_datetime(
-                &chrono::NaiveDate::from_ymd_opt(2026, 5, 17)
-                    .unwrap()
-                    .and_hms_opt(10, 0, 0)
-                    .unwrap(),
-            )
-            .unwrap()
-    }
 
     fn parse(args: &[&str]) -> Result<ParsedFields> {
         let v: Vec<String> = args.iter().map(|s| s.to_string()).collect();
-        parse_task_fields(&v, now())
+        parse_task_fields(&v)
     }
 
     #[test]
@@ -172,22 +156,29 @@ mod tests {
     }
 
     #[test]
-    fn trailing_space_trimmed() {
-        // " x " comes in as one positional arg; joined+trimmed should be "x".
-        let p = parse(&[" x "]).unwrap();
-        assert_eq!(p.text.as_deref(), Some("x"));
+    fn category_with_c_prefix() {
+        let p = parse(&["task", "c:a"]).unwrap();
+        assert_eq!(p.category, Some(Category::A));
     }
 
     #[test]
-    fn priority_uppercase_prefix() {
-        let p = parse(&["task", "P:a"]).unwrap();
-        assert_eq!(p.priority, Some(Priority::A));
+    fn category_uppercase_prefix() {
+        let p = parse(&["task", "C:a"]).unwrap();
+        assert_eq!(p.category, Some(Category::A));
     }
 
     #[test]
-    fn due_mixed_case_prefix() {
-        let p = parse(&["task", "Due:tomorrow"]).unwrap();
-        assert!(p.due.is_some());
+    fn category_with_full_word_prefix() {
+        let p = parse(&["task", "category:b"]).unwrap();
+        assert_eq!(p.category, Some(Category::B));
+    }
+
+    #[test]
+    fn category_p_alias_still_accepted() {
+        // `p:` was the prior spelling. Keep it working to avoid breaking
+        // muscle memory and existing notes/scripts.
+        let p = parse(&["task", "p:c"]).unwrap();
+        assert_eq!(p.category, Some(Category::C));
     }
 
     #[test]
@@ -197,13 +188,40 @@ mod tests {
     }
 
     #[test]
-    fn duplicate_priority_rejected() {
-        assert!(parse(&["task", "p:a", "p:b"]).is_err());
+    fn ord_parses_positive_integer() {
+        let p = parse(&["task", "ord:3"]).unwrap();
+        assert_eq!(p.ord, Some(3));
     }
 
     #[test]
-    fn duplicate_due_rejected() {
-        assert!(parse(&["task", "due:tomorrow", "due:friday"]).is_err());
+    fn ord_zero_rejected() {
+        assert!(parse(&["task", "ord:0"]).is_err());
+    }
+
+    #[test]
+    fn ord_non_integer_rejected() {
+        assert!(parse(&["task", "ord:abc"]).is_err());
+    }
+
+    #[test]
+    fn ord_empty_value_rejected() {
+        assert!(parse(&["task", "ord:"]).is_err());
+    }
+
+    #[test]
+    fn duplicate_category_rejected() {
+        assert!(parse(&["task", "c:a", "c:b"]).is_err());
+    }
+
+    #[test]
+    fn duplicate_category_across_aliases_rejected() {
+        // `p:` is just an alias of `c:` — using both forms still counts as duplicate.
+        assert!(parse(&["task", "p:a", "c:b"]).is_err());
+    }
+
+    #[test]
+    fn duplicate_ord_rejected() {
+        assert!(parse(&["task", "ord:1", "ord:2"]).is_err());
     }
 
     #[test]
@@ -212,17 +230,17 @@ mod tests {
     }
 
     #[test]
-    fn empty_priority_value_clear_error() {
-        let err = parse(&["task", "p:"]).unwrap_err();
+    fn empty_category_value_clear_error() {
+        let err = parse(&["task", "c:"]).unwrap_err();
         let msg = format!("{err}");
         assert!(msg.contains("required"), "got: {msg}");
     }
 
     #[test]
-    fn priority_with_colon_is_rejected() {
-        let err = parse(&["task", "p:a:b"]).unwrap_err();
+    fn category_with_colon_is_rejected() {
+        let err = parse(&["task", "c:a:b"]).unwrap_err();
         let msg = format!("{err}");
-        assert!(msg.contains("invalid priority"), "got: {msg}");
+        assert!(msg.contains("invalid category"), "got: {msg}");
     }
 
     #[test]
@@ -232,8 +250,8 @@ mod tests {
 
     #[test]
     fn no_text_returns_none_text() {
-        let p = parse(&["p:a"]).unwrap();
+        let p = parse(&["c:a"]).unwrap();
         assert!(p.text.is_none());
-        assert_eq!(p.priority, Some(Priority::A));
+        assert_eq!(p.category, Some(Category::A));
     }
 }

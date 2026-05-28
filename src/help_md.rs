@@ -1,13 +1,5 @@
 //! Markdown-rendered help, used when the user combines `--help` and `--format md`.
-//!
-//! clap's built-in `--help` short-circuits parsing and writes its own plain output, so
-//! this module hands back fully-formed markdown for the same surface. The match on
-//! `path` mirrors the subcommand tree in `cli.rs`; if you add or rename a subcommand
-//! there, update the corresponding branch (and its `path.matches` aliases) here too.
 
-/// Returns true if `--format md` and `--help`/`-h` both appear in the raw args. We
-/// scan once so order doesn't matter (`task --help --format md` and
-/// `task --format md --help` both qualify).
 pub fn wants_md_help(args: &[String]) -> bool {
     let has_help = args.iter().any(|a| a == "--help" || a == "-h");
     let has_md = args.windows(2).any(|w| w[0] == "--format" && w[1] == "md")
@@ -15,16 +7,12 @@ pub fn wants_md_help(args: &[String]) -> bool {
     has_help && has_md
 }
 
-/// Extract the subcommand "path" from raw args, skipping `--format VALUE` and other
-/// flags/values. We don't need to fully simulate clap; we just want to know which help
-/// page the user is asking for. Returns e.g. `["history", "list"]` or `[]` for root.
 pub fn extract_subcommand_path(args: &[String]) -> Vec<String> {
     let mut path = Vec::new();
-    let mut i = 1; // skip program name
+    let mut i = 1;
     while i < args.len() {
         let a = &args[i];
         if a == "--format" {
-            // `--format md` — skip the value as well.
             i += 2;
             continue;
         }
@@ -44,9 +32,6 @@ pub fn extract_subcommand_path(args: &[String]) -> Vec<String> {
             i += 1;
             continue;
         }
-        // First positional arg is the subcommand. Keep walking to also pick up nested
-        // subcommands like `history list`, but stop if we hit something that looks
-        // like a positional payload (digits, free text).
         if let Some(canonical) = canonicalize(&path, a) {
             path.push(canonical);
             i += 1;
@@ -57,9 +42,6 @@ pub fn extract_subcommand_path(args: &[String]) -> Vec<String> {
     path
 }
 
-/// Map an alias to its canonical name for the given parent path. Returns `None` if
-/// the token doesn't match any known (sub)command at this level — that's the cue to
-/// stop walking and treat the remainder as positional args.
 fn canonicalize(parent: &[String], token: &str) -> Option<String> {
     match parent
         .iter()
@@ -86,7 +68,6 @@ fn canonicalize(parent: &[String], token: &str) -> Option<String> {
     }
 }
 
-/// Render the markdown help string for the given subcommand path.
 pub fn render(path: &[String]) -> String {
     let path_strs: Vec<&str> = path.iter().map(String::as_str).collect();
     match path_strs.as_slice() {
@@ -113,6 +94,22 @@ const ROOT: &str = "\
 
 Personal task manager.
 
+## ⚠ Notice for LLM agents
+
+**Never invoke any of the interactive TUI surfaces.** They block on user input
+forever and will hang your script / tool call. Specifically:
+
+- `task` with **no command** — opens the main TUI. Don't.
+- `task edit <ID>` with **no field args** — opens the form editor. Always pass
+  fields (`task edit 3 c:a`, `task edit 3 ord:1`, etc.).
+- `task history` with **no subcommand** — opens the history picker. Use
+  `task history list` instead (and add `--format md` to get a table).
+- `task clear` without `-y` — opens a confirmation prompt. Pass `-y` to skip.
+
+For machine-readable output, append `--format md` to any non-interactive
+subcommand (`task list --format md`, `task info 3 --format md`,
+`task history list --format md`, etc.).
+
 ## Usage
 
 `task [OPTIONS] [COMMAND]`
@@ -122,13 +119,29 @@ If no command is given, the interactive TUI opens.
 ## Commands
 
 - **add** `ARGS...` — Add a new task.
-- **list** — List tasks (active by default).
+- **list** — List tasks (active by default), sorted by manual Ord.
 - **edit** `ID [ARGS]...` — Edit a task. With no args, opens the form editor.
 - **delete** `ID` — Soft-delete a task (recoverable via `history`).
 - **complete** `ID` — Mark a task as completed.
 - **info** `ID` — Show task details.
 - **clear** — Wipe the entire database (irreversible).
 - **history** — Show recent changes, or revert a specific event.
+
+## TUI keys
+
+Run `task` with no command to open the interactive list. Then:
+
+- `↑` / `↓` — move cursor between tasks
+- `1`..`9` — move the cursor task to that 1-based position (digits 1–9)
+- `Enter` — edit the task at the cursor
+- `/` — search/filter the task list; type to filter, `Enter` to apply, `Esc` to
+  cancel the edit
+- `a` — add a task
+- `e` — edit the task at the cursor
+- `c` / `d` — toggle pending complete / delete (applied on quit)
+- `Shift+A` / `Shift+B` / `Shift+C` — set category on the cursor task
+- `Esc` — clear an active search filter on the first press; quit on the next.
+  `Ctrl+C` quits unconditionally.
 
 ## Global Options
 
@@ -140,9 +153,23 @@ If no command is given, the interactive TUI opens.
 
 When using `add` or `edit`, fields can be set inline:
 
-- `p:a` | `p:b` | `p:c` — priority (A is highest)
-- `due:tomorrow` | `due:fri` | `due:jun15` | `due:30m` — due date/time
+- `c:a` | `c:b` | `c:c` — category (A is highest)
+- `ord:N` — manual order position (1-based)
 - `est:30m` | `est:1h` | `est:2d` — estimated effort
+
+## Auto-deletion
+
+Stale tasks are removed automatically. Ages are measured in **working days**
+(Mon–Fri local time; weekends are skipped). Any user edit to a task — text,
+category, ord, or est — resets its clock.
+
+- **Category A** — never auto-deleted.
+- **Category B** — auto-deleted after **1 work week** (5 working days) without
+  any update.
+- **Category C** — auto-deleted after **2 working days** without any update.
+- **Completed** — hard-removed **1 work week** after completion.
+- **Soft-deleted** — hard-removed **1 work week** after deletion. (Until then
+  the task is recoverable via `task history`.)
 
 Run `task <COMMAND> --help --format md` for command-specific markdown help.
 ";
@@ -159,22 +186,32 @@ Add a new task.
 ## Examples
 
 - `task add Buy milk`
-- `task add Read book p:a due:tomorrow est:1h`
-- `task add Plan sprint due:jun15 est:2h p:b`
-- `task add \"Quick chore\" p:c`
+- `task add Read book c:a est:1h`
+- `task add Plan sprint c:b est:2h ord:1`
+- `task add \"Quick chore\" c:c`
 
 ## Fields
 
-- `p:a` | `p:b` | `p:c` — priority
-- `due:tomorrow` | `due:fri` | `due:jun15` | `due:30m` — when it's due
+- `c:a` | `c:b` | `c:c` — category
+- `ord:N` — manual order position (1-based); other tasks shift to make room
 - `est:30m` | `est:1h` — estimated effort
+
+## Auto-deletion by category
+
+Stale tasks are swept automatically based on how long it's been since the last
+edit. Working days only (Mon–Fri).
+
+- **A** — never auto-deleted.
+- **B** — gone after **1 work week** (5 working days) of no updates.
+- **C** — gone after **2 working days** of no updates.
+
+Editing the task (text, category, ord, est) resets the clock.
 ";
 
 const LIST: &str = "\
 # task list
 
-List tasks. By default shows only active tasks in a compact view (today + the next
-day with tasks, max 3 rows per day).
+List tasks. By default shows only active tasks, sorted by the manual Ord field.
 
 ## Usage
 
@@ -182,20 +219,19 @@ day with tasks, max 3 rows per day).
 
 ## Options
 
-- `-a`, `--active` — Show only active tasks (default, but explicit form disables the
-  compact cap).
+- `-a`, `--active` — Show only active tasks (default).
 - `--completed` — Show only completed tasks.
 - `--deleted` — Show only soft-deleted tasks.
 - `--all` — Show every task regardless of status.
 
 ## Examples
 
-- `task list` — default compact view
-- `task list -a` — full active list (no per-day cap)
+- `task list` — active tasks ordered by Ord
 - `task list --completed` — completed tasks
 - `task list --all` — everything
 
-In markdown mode each day becomes an `##` heading with a table of the task rows.
+In markdown mode tasks come back as a single table with `ID`, `Pri`, `Status`,
+`Ord`, `Description`, and `Est` columns.
 ";
 
 const EDIT: &str = "\
@@ -207,16 +243,22 @@ Edit an existing task.
 
 `task edit ID [ARGS]...`
 
-With no field args, opens the built-in form editor inside the terminal. The form
-editor requires a real TTY; in scripts or piped contexts, pass field args
-(`p:`/`due:`/`est:`/text) directly.
+With no field args, opens the built-in form editor inside the terminal — an
+interactive TUI that blocks on input.
+
+## ⚠ Notice for LLM agents
+
+**Always pass at least one field arg.** Calling `task edit 3` with no fields
+opens the interactive form editor and will hang your tool call. Use the inline
+field syntax instead — `task edit 3 c:a`, `task edit 3 ord:1 est:30m`, or
+`task edit 3 New text here` (anything not prefixed with `c:` / `ord:` /
+`est:` is treated as the new task text).
 
 ## Examples
 
-- `task edit 3` — open the form editor
-- `task edit 3 p:a` — set priority via args
+- `task edit 3 c:a` — set category via args
 - `task edit 3 New text` — change text via args
-- `task edit 3 due:tomorrow est:30m`
+- `task edit 3 ord:1 est:30m` — move to first position and update estimate
 
 In markdown mode the edited task is re-rendered as a full info card after the change.
 ";
@@ -233,6 +275,11 @@ Delete a task. The task is soft-deleted and can be restored from `task history`.
 ## Example
 
 - `task delete 3`
+
+## Retention
+
+After soft-delete, the task is hard-removed automatically **1 work week**
+(5 working days) later. Until then it can be restored via `task history`.
 ";
 
 const COMPLETE: &str = "\
@@ -247,12 +294,17 @@ Mark a task as completed.
 ## Example
 
 - `task complete 3`
+
+## Retention
+
+Completed tasks are hard-removed automatically **1 work week** (5 working
+days) after completion.
 ";
 
 const INFO: &str = "\
 # task info
 
-Show full task details (text, priority, due, est, status, timestamps).
+Show full task details (text, category, ord, est, status, timestamps).
 
 ## Usage
 
@@ -274,6 +326,12 @@ undone. By default you get a confirmation prompt; pass `-y` / `-f` to skip it.
 ## Usage
 
 `task clear [OPTIONS]`
+
+## ⚠ Notice for LLM agents
+
+`task clear` without `-y` opens a confirmation prompt and will hang. Either
+pass `-y`/`-f` to confirm, or — better — don't call `clear` from an automated
+flow at all (this is a destructive, irreversible operation).
 
 ## Options
 
@@ -299,6 +357,13 @@ Running `task history` with no subcommand opens an interactive picker so you can
 choose which event to undo. Use `task history list` to dump events to stdout.
 
 The last 30 events are kept. Each event has a stable ID you can revert.
+
+## ⚠ Notice for LLM agents
+
+**Don't call `task history` with no subcommand** — that opens the interactive
+picker and will block. Use `task history list` (optionally with `--format md`)
+to read events, and `task history --revert <ID> -y` to undo a specific one
+without the confirmation prompt.
 
 ## Subcommands
 
@@ -332,11 +397,10 @@ contexts.
 ## Options
 
 - `-v`, `--verbose` — Include detailed old→new values for edits. Without this,
-  edits only show the field-name tokens (`text`, `p`, `due`, `est`) that changed.
+  edits only show the field-name tokens (`text`, `p`, `ord`, `est`) that changed.
 
 In markdown mode the events come back as a single table with `ID`, `When`, and
-`Event` columns. Revert operations always include the full diff regardless of this
-flag — the user is acting on the change, so the extra detail is worth it.
+`Event` columns. The `When` column always renders relative (e.g. `3d ago`).
 ";
 
 #[cfg(test)]
@@ -402,7 +466,6 @@ mod tests {
 
     #[test]
     fn extract_stops_at_unknown_positional() {
-        // `info 7 --help`: "7" isn't a subcommand, so the walk stops at `info`.
         let path = extract_subcommand_path(&args(&["info", "7", "--help", "--format", "md"]));
         assert_eq!(path, vec!["info".to_string()]);
     }
@@ -419,9 +482,10 @@ mod tests {
     fn render_add_includes_field_syntax() {
         let out = render(&["add".into()]);
         assert!(out.starts_with("# task add"));
-        assert!(out.contains("p:a"));
-        assert!(out.contains("due:"));
+        assert!(out.contains("c:a"));
+        assert!(out.contains("ord:"));
         assert!(out.contains("est:"));
+        assert!(!out.contains("due:"), "should not mention due: {out}");
     }
 
     #[test]

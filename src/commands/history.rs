@@ -56,7 +56,7 @@ pub fn collect_cascade(store: &Store, from_id: u64) -> Result<Vec<(u64, HistoryE
     let mut entries = store.history()?;
     // history() returns ascending by id; make sure of it so the loop below sees
     // events from oldest to newest.
-    entries.sort_by(|a, b| a.0.cmp(&b.0));
+    entries.sort_by_key(|(id, _)| *id);
 
     let target_task_id = entries
         .iter()
@@ -82,7 +82,7 @@ pub fn collect_cascade(store: &Store, from_id: u64) -> Result<Vec<(u64, HistoryE
         }
         collected.push((id, entry));
     }
-    collected.sort_by(|a, b| b.0.cmp(&a.0));
+    collected.sort_by_key(|(id, _)| std::cmp::Reverse(*id)); // newest first
     Ok(collected)
 }
 
@@ -110,7 +110,7 @@ mod tests {
     use super::*;
     use crate::clock::FakeClock;
     use crate::confirm::AutoConfirm;
-    use crate::model::{Priority, Status, Task};
+    use crate::model::{Category, Status, Task};
     use chrono::{TimeZone, Utc};
     use tempfile::tempdir;
 
@@ -119,14 +119,16 @@ mod tests {
     }
 
     fn make_task(id: u32) -> Task {
+        let now = Utc::now();
         Task {
             id,
             text: format!("task {id}"),
-            priority: Priority::B,
-            due: Utc::now(),
+            category: Category::B,
+            ord: id,
             est_secs: 1800,
             status: Status::Active,
-            created_at: Utc::now(),
+            created_at: now,
+            updated_at: now,
             completed_at: None,
             deleted_at: None,
         }

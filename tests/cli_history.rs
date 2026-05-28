@@ -18,7 +18,7 @@ fn extract_event_id(output: &str) -> Option<u64> {
             // Skip header rows
             !line.contains("ID") && !line.contains("─") && !line.trim().is_empty()
         })
-        .find_map(|line| line.trim_start().split_whitespace().next()?.parse().ok())
+        .find_map(|line| line.split_whitespace().next()?.parse().ok())
 }
 
 #[test]
@@ -123,13 +123,7 @@ fn history_revert_restores_deleted_task() {
     let event_id = stdout
         .lines()
         .find(|l| l.contains("deleted"))
-        .and_then(|l| {
-            l.trim_start()
-                .split_whitespace()
-                .next()?
-                .parse::<u64>()
-                .ok()
-        })
+        .and_then(|l| l.split_whitespace().next()?.parse::<u64>().ok())
         .expect("expected a deleted event");
 
     task(&scope)
@@ -155,13 +149,7 @@ fn history_revert_complete_restores_to_active() {
     let event_id = stdout
         .lines()
         .find(|l| l.contains("completed"))
-        .and_then(|l| {
-            l.trim_start()
-                .split_whitespace()
-                .next()?
-                .parse::<u64>()
-                .ok()
-        })
+        .and_then(|l| l.split_whitespace().next()?.parse::<u64>().ok())
         .expect("expected a completed event");
 
     task(&scope)
@@ -249,13 +237,7 @@ fn history_revert_independent_tasks_do_not_cascade() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     let oldest_id = stdout
         .lines()
-        .filter_map(|line| {
-            line.trim_start()
-                .split_whitespace()
-                .next()?
-                .parse::<u64>()
-                .ok()
-        })
+        .filter_map(|line| line.split_whitespace().next()?.parse::<u64>().ok())
         .min()
         .expect("expected at least one event");
 
@@ -315,13 +297,7 @@ fn history_revert_latest_only_reverts_one() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     let latest_id = stdout
         .lines()
-        .filter_map(|line| {
-            line.trim_start()
-                .split_whitespace()
-                .next()?
-                .parse::<u64>()
-                .ok()
-        })
+        .filter_map(|line| line.split_whitespace().next()?.parse::<u64>().ok())
         .max()
         .expect("expected at least one event");
 
@@ -391,7 +367,7 @@ fn history_list_default_summary_is_minimal_for_edits() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     // Minimal: only the field tokens, no quoted before/after values, no arrows.
     assert!(
-        stdout.contains("edited #1: text, p"),
+        stdout.contains("edited #1: text, cat"),
         "expected minimal field tokens, got:\n{stdout}"
     );
     assert!(
@@ -409,7 +385,7 @@ fn history_list_verbose_includes_diff_for_edits() {
     let scope = StoreScope::new();
     task(&scope).args(["add", "Buy milk"]).assert().success();
     task(&scope)
-        .args(["edit", "1", "Buy almond milk", "p:a"])
+        .args(["edit", "1", "Buy almond milk", "c:a"])
         .assert()
         .success();
     task(&scope)
@@ -417,7 +393,7 @@ fn history_list_verbose_includes_diff_for_edits() {
         .assert()
         .success()
         .stdout(contains("text \"Buy milk\"→\"Buy almond milk\""))
-        .stdout(contains("p B→A"));
+        .stdout(contains("cat B→A"));
 }
 
 #[test]
@@ -493,13 +469,7 @@ fn history_revert_message_uses_verbose_summary_even_in_default_mode() {
     let edit_event_id = stdout
         .lines()
         .find(|l| l.contains("edited #1"))
-        .and_then(|l| {
-            l.trim_start()
-                .split_whitespace()
-                .next()?
-                .parse::<u64>()
-                .ok()
-        })
+        .and_then(|l| l.split_whitespace().next()?.parse::<u64>().ok())
         .expect("expected an edit event");
     task(&scope)
         .args(["history", "--revert", &edit_event_id.to_string(), "-y"])

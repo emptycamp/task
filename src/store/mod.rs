@@ -1,7 +1,9 @@
 pub mod codec;
 pub mod gc;
+pub mod order;
 pub mod revert;
 pub mod tasks;
+pub mod workdays;
 
 use crate::clock::Clock;
 use crate::error::{Error, Result};
@@ -45,13 +47,11 @@ impl Store {
         };
 
         let mut txn = env.write_txn()?;
-        let tasks_db = env.create_database(&mut txn, Some("tasks"))?;
-        // Named "history_v2" to keep the new schema separate from any legacy
-        // RevertOp-encoded entries left over from earlier versions. Old data in
-        // "revert" and "history" is left in place but ignored — bincode lacks the
-        // tolerance for added/changed enum-variant fields, so re-reading historical
-        // entries would just fail to decode.
-        let revert_db = env.create_database(&mut txn, Some("history_v2"))?;
+        // DB names bump every time `Task` gains/loses a serialized field, since
+        // bincode is schema-intolerant and old rows wouldn't decode. Leave old
+        // data on disk, open a fresh DB. v4 was added when `updated_at` joined.
+        let tasks_db = env.create_database(&mut txn, Some("tasks_v4"))?;
+        let revert_db = env.create_database(&mut txn, Some("history_v5"))?;
         let meta_db = env.create_database(&mut txn, Some("meta"))?;
         txn.commit()?;
 
@@ -106,17 +106,14 @@ impl Store {
     }
 
     /// Allocate a new task ID and insert the task in a single write transaction.
-    ///
-    /// `build` is invoked with the next free ID inside the txn so two concurrent
-    /// `task add` invocations don't pick the same ID and clobber each other (the lmdb
-    /// writer is single-threaded, so the second one sees the first one's commit).
     pub fn add_task_atomic<F>(&mut self, build: F, clock: &dyn Clock) -> Result<Task>
     where
-        F: FnOnce(TaskId) -> Task,
+        F: FnOnce(TaskId, u32) -> Task,
     {
         let mut txn = self.env.write_txn()?;
         let id = tasks::next_id(&txn, self.tasks_db)?;
-        let task = build(id);
+        let next_ord = tasks::next_active_ord(&txn, self.tasks_db)?;
+        let task = build(id, next_ord);
         tasks::put(&mut txn, self.tasks_db, &task)?;
         revert::push(
             &mut txn,
@@ -132,6 +129,11 @@ impl Store {
     pub fn next_id(&self) -> Result<TaskId> {
         let txn = self.env.read_txn()?;
         tasks::next_id(&txn, self.tasks_db)
+    }
+
+    pub fn next_active_ord(&self) -> Result<u32> {
+        let txn = self.env.read_txn()?;
+        tasks::next_active_ord(&txn, self.tasks_db)
     }
 
     pub fn update_task(&mut self, task: Task) -> Result<()> {
@@ -204,10 +206,6 @@ impl Store {
     /// Atomic read-modify-write. Reads the current task inside a write transaction,
     /// invokes `modify` to produce the new state, then writes the new state and pushes
     /// a history event — all in the same transaction.
-    ///
-    /// This prevents lost updates from concurrent edits: each writer sees the latest
-    /// committed state, so the recorded `before` and the persisted `after` are always
-    /// consistent.
     pub fn mutate_task<F>(
         &mut self,
         id: TaskId,
@@ -220,9 +218,16 @@ impl Store {
     {
         let mut txn = self.env.write_txn()?;
         let before = tasks::get(&txn, self.tasks_db, id)?;
-        let after = modify(&before)?;
+        let mut after = modify(&before)?;
         if after == before {
             return Ok(after);
+        }
+        // Edits refresh `updated_at` so the GC stale-clock restarts on user
+        // touch. Status transitions (Complete/Delete) keep the previous
+        // `updated_at` — the relevant clock from there on is `completed_at` /
+        // `deleted_at`, which the caller has already set on `after`.
+        if matches!(kind, MutateKind::Edit) {
+            after.updated_at = clock.now();
         }
         tasks::put(&mut txn, self.tasks_db, &after)?;
         let op = match kind {
@@ -259,6 +264,58 @@ impl Store {
             tasks_cleared,
             events_cleared,
         })
+    }
+
+    /// Move `id` to manual order position `target_ord` (1-based), shifting other
+    /// active tasks to make room. No-op if `target_ord` is the task's current ord.
+    pub fn reorder_task(&mut self, id: TaskId, target_ord: u32, clock: &dyn Clock) -> Result<()> {
+        let before = self.get_task(id)?;
+        if before.ord == target_ord {
+            return Ok(());
+        }
+        let mut active: Vec<Task> = self
+            .all_tasks()?
+            .into_iter()
+            .filter(|t| t.status == crate::model::Status::Active)
+            .collect();
+        active.sort_by_key(|t| t.ord);
+
+        let new_orders = order::compute_reorder(&active, id, target_ord);
+
+        let now = clock.now();
+        let mut txn = self.env.write_txn()?;
+        // Apply the bulk shifts directly — no history events for the bystanders,
+        // since the user only triggered a single move. Record one edit event for
+        // the moved task so the history log reflects the user-facing change. The
+        // moved task also gets a fresh `updated_at` (it's an intentional user
+        // action); shifted bystanders don't, so they don't stay alive forever
+        // just because something nearby was reordered.
+        for t in active.iter() {
+            if let Some(new_ord) = new_orders.get(&t.id).copied() {
+                if t.id == id {
+                    let mut after = t.clone();
+                    after.ord = new_ord;
+                    after.updated_at = now;
+                    tasks::put(&mut txn, self.tasks_db, &after)?;
+                    revert::push(
+                        &mut txn,
+                        self.revert_db,
+                        self.meta_db,
+                        RevertOp::Edited {
+                            before: t.clone(),
+                            after,
+                        },
+                        now,
+                    )?;
+                } else if new_ord != t.ord {
+                    let mut updated = t.clone();
+                    updated.ord = new_ord;
+                    tasks::put(&mut txn, self.tasks_db, &updated)?;
+                }
+            }
+        }
+        txn.commit()?;
+        Ok(())
     }
 
     pub fn history(&self) -> Result<Vec<(u64, HistoryEntry)>> {

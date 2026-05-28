@@ -56,5 +56,5 @@ fn info_format_md_outputs_markdown() {
         .success()
         .stdout(contains("# Task #1"))
         .stdout(contains("- **Text:** Buy milk"))
-        .stdout(contains("- **Priority:** A"));
+        .stdout(contains("- **Category:** A"));
 }

@@ -21,7 +21,7 @@ fn add_basic_task_prints_confirmation() {
 }
 
 #[test]
-fn add_task_with_priority_a() {
+fn add_task_with_category_a() {
     let scope = StoreScope::new();
     task(&scope)
         .args(["add", "Read book", "p:a"])
@@ -30,10 +30,10 @@ fn add_task_with_priority_a() {
 }
 
 #[test]
-fn add_task_with_due_and_est() {
+fn add_task_with_ord_and_est() {
     let scope = StoreScope::new();
     task(&scope)
-        .args(["add", "Plan sprint", "due:tomorrow", "est:1h"])
+        .args(["add", "Plan sprint", "ord:1", "est:1h"])
         .assert()
         .success();
 }

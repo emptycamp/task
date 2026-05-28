@@ -17,12 +17,12 @@ pub fn apply(
 
         for change in changes
             .iter()
-            .filter(|c| matches!(c, PendingChange::SetPriority(_, _)))
+            .filter(|c| matches!(c, PendingChange::SetCategory(_, _)))
         {
-            if let PendingChange::SetPriority(_, priority) = change {
+            if let PendingChange::SetCategory(_, category) = change {
                 let task = store.get_task(id)?;
                 let mut updated = task.clone();
-                updated.priority = *priority;
+                updated.category = *category;
                 store.update_task_with_revert(task, updated, clock)?;
             }
         }

@@ -29,21 +29,27 @@ Add a new task.
 
 Examples:
   task add Buy milk
-  task add Read book p:a due:tomorrow est:1h
-  task add Plan sprint due:jun15 est:2h p:b
-  task add \"Quick chore\" p:c
+  task add Read book c:a est:1h
+  task add Plan sprint c:b est:2h ord:1
+  task add \"Quick chore\" c:c
 
 Fields you can set inline:
-  p:a | p:b | p:c                priority
-  due:tomorrow | due:fri | ...   when it's due (keyword, weekday, MMMd, duration)
+  c:a | c:b | c:c                category (A, B, or C; `p:` works as a legacy alias)
+  ord:N                          manual order (1-based; insert at position N)
   est:30m | est:1h               estimated effort
+
+Auto-deletion by category (working days only, Mon–Fri; weekends are skipped):
+  A    never auto-deleted
+  B    auto-deleted after 1 work week (5 working days) without an update
+  C    auto-deleted after 2 working days without an update
+Editing the task (text, category, ord, est) resets the clock.
 ")]
     Add { args: Vec<String> },
     /// List tasks. By default shows only active tasks.
     #[command(aliases = ["ls"])]
     #[command(group(ArgGroup::new("filter").args(["active", "completed", "deleted", "all"]).multiple(false)))]
     #[command(long_about = "\
-List tasks. By default shows only active tasks.
+List tasks. By default shows only active tasks, sorted by manual order (Ord).
 
 Examples:
   task list                       # active tasks (default)
@@ -74,19 +80,22 @@ Edit an existing task.
 
 With no field args, opens the built-in form editor inside the terminal. The form
 editor requires a real TTY; in scripts or piped contexts, pass field args
-(p:/due:/est:/text) directly.
+(c:/ord:/est:/text) directly.
 
 Examples:
   task edit 3                       # open the form editor in this terminal
-  task edit 3 p:a                   # set priority via args (scriptable)
+  task edit 3 c:a                   # set category via args (scriptable)
   task edit 3 New text              # change text via args
-  task edit 3 due:tomorrow est:30m
+  task edit 3 ord:1 est:30m         # move to first position and update estimate
 ")]
     Edit { id: TaskId, args: Vec<String> },
     /// Delete a task (soft delete; can be reverted via history).
     #[command(aliases = ["del", "remove", "rm", "discard", "trash"])]
     #[command(long_about = "\
 Delete a task. The task is soft-deleted and can be restored from history.
+
+Soft-deleted tasks are hard-removed automatically 1 work week (5 working days)
+after deletion.
 
 Examples:
   task delete 3
@@ -97,6 +106,9 @@ Examples:
     #[command(long_about = "\
 Mark a task as completed.
 
+Completed tasks are hard-removed automatically 1 work week (5 working days)
+after completion.
+
 Examples:
   task complete 3
 ")]
@@ -104,7 +116,7 @@ Examples:
     /// Show full task details.
     #[command(aliases = ["show", "view", "details"])]
     #[command(long_about = "\
-Show full task details (text, priority, due, est, status, timestamps).
+Show full task details (text, category, ord, est, status, timestamps).
 
 Examples:
   task info 3

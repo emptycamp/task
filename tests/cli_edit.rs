@@ -11,7 +11,7 @@ fn task(scope: &StoreScope) -> Command {
 }
 
 #[test]
-fn edit_priority_via_args() {
+fn edit_category_via_args() {
     let scope = StoreScope::new();
     task(&scope).args(["add", "Read book"]).assert().success();
     task(&scope).args(["edit", "1", "p:a"]).assert().success();
@@ -65,7 +65,7 @@ fn edit_with_form_via_yaml_env_var_updates_task() {
     let scope = StoreScope::new();
     task(&scope).args(["add", "Buy milk"]).assert().success();
 
-    let new_content = "text: Buy oat milk\npriority: A\ndue: 2026-06-01T09:00:00Z\nest: 15m\n";
+    let new_content = "text: Buy oat milk\ncategory: A\nord: 1\nest: 15m\n";
 
     task(&scope)
         .args(["edit", "1"])

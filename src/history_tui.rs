@@ -112,7 +112,7 @@ impl App {
 
 fn load_entries(store: &Store) -> Result<Vec<(u64, HistoryEntry)>> {
     let mut entries = store.history()?;
-    entries.sort_by(|a, b| b.0.cmp(&a.0));
+    entries.sort_by_key(|(id, _)| std::cmp::Reverse(*id));
     Ok(entries)
 }
 
@@ -160,9 +160,7 @@ fn run_loop(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App
                 app.cursor = app.cursor.saturating_sub(1);
             }
             (KeyCode::Down, _) => {
-                if app.cursor + 1 < app.entries.len() {
-                    app.cursor += 1;
-                }
+                app.cursor = (app.cursor + 1).min(app.entries.len().saturating_sub(1));
             }
             (KeyCode::Char('u'), KeyModifiers::NONE) | (KeyCode::Enter, _) => {
                 app.toggle_mark_at_cursor();
@@ -278,16 +276,17 @@ mod tests {
     /// Build N events that all touch the same task — that's what the cascade is
     /// scoped to, so this is the relevant shape for the navigation tests.
     fn same_task_entries(event_ids: &[u64], task_id: u32) -> Vec<(u64, HistoryEntry)> {
-        use crate::model::{Priority, Status, Task};
+        use crate::model::{Category, Status, Task};
         let now = Utc::now();
         let baseline = Task {
             id: task_id,
             text: format!("task {task_id}"),
-            priority: Priority::B,
-            due: now,
+            category: Category::B,
+            ord: task_id,
             est_secs: 0,
             status: Status::Active,
             created_at: now,
+            updated_at: now,
             completed_at: None,
             deleted_at: None,
         };
@@ -374,17 +373,19 @@ mod tests {
     /// cascades all show up together.
     #[test]
     fn anchors_on_two_tasks_union_their_cascades() {
-        use crate::model::{Priority, Status, Task};
+        use crate::model::{Category, Status, Task};
         let now = Utc::now();
         fn t(id: u32) -> Task {
+            let now = Utc::now();
             Task {
                 id,
                 text: format!("task {id}"),
-                priority: Priority::B,
-                due: Utc::now(),
+                category: Category::B,
+                ord: id,
                 est_secs: 0,
                 status: Status::Active,
-                created_at: Utc::now(),
+                created_at: now,
+                updated_at: now,
                 completed_at: None,
                 deleted_at: None,
             }
@@ -465,17 +466,19 @@ mod tests {
     /// Mixed-task entries: anchoring on a #task-A event must NOT mark newer #task-B events.
     #[test]
     fn cascade_skips_events_for_other_tasks() {
-        use crate::model::{Priority, Status, Task};
+        use crate::model::{Category, Status, Task};
         let now = Utc::now();
         fn t(id: u32) -> Task {
+            let now = Utc::now();
             Task {
                 id,
                 text: format!("task {id}"),
-                priority: Priority::B,
-                due: Utc::now(),
+                category: Category::B,
+                ord: id,
                 est_secs: 0,
                 status: Status::Active,
-                created_at: Utc::now(),
+                created_at: now,
+                updated_at: now,
                 completed_at: None,
                 deleted_at: None,
             }

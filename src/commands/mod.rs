@@ -37,7 +37,9 @@ pub fn dispatch(
     prompt: &dyn Prompt,
     tty: &dyn Tty,
 ) -> Result<()> {
-    let gc_count = gc::sweep(store, clock)?;
+    // GC runs for its side-effects (keep the DB small). The count is intentionally
+    // not surfaced to the user — the human view should be quiet.
+    let _ = gc::sweep(store, clock)?;
 
     let md = matches!(cli.format, Some(OutputFormat::Md));
     let opts = if md {
@@ -70,14 +72,9 @@ pub fn dispatch(
             deleted,
             all,
         }) => {
-            let choice = list::resolve_filter(*active, *completed, *deleted, *all);
-            let (output, _) = list::run_with_gc_count(store, choice, &opts, gc_count)?;
-            let final_output = if md {
-                list::format_with_footer_md(&output, gc_count)
-            } else {
-                list::format_with_footer(&output, gc_count)
-            };
-            print!("{final_output}");
+            let filter = list::resolve_filter(*active, *completed, *deleted, *all);
+            let output = list::run(store, filter, &opts)?;
+            print!("{output}");
         }
         Some(Cmd::Edit { id, args }) => {
             edit::run(*id, args, store, clock, editor)?;
@@ -160,10 +157,6 @@ pub fn dispatch(
                 }
             }
             None => {
-                // Default to interactive picker on a TTY; fall back to plain listing when
-                // piped/captured (tests, scripts), when `list` is explicit, or in md mode.
-                // -v / --verbose is only meaningful on the `list` subcommand; for the
-                // non-tty / md fallbacks it stays off (minimal).
                 let verbose = matches!(cmd, Some(HistoryCmd::List { verbose: true }));
                 let explicit_list = matches!(cmd, Some(HistoryCmd::List { .. }));
                 if md || explicit_list || !tty.is_tty() {
