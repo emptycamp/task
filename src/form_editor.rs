@@ -413,7 +413,7 @@ fn draw(frame: &mut Frame, state: &State) {
 
     frame.render_widget(
         Paragraph::new(Span::styled(
-            " Esc save · Ctrl+C discard · Enter newline · a trailing duration (e.g. 45m) sets the estimate ",
+            " Esc save · Enter newline · a trailing duration (e.g. 45m) sets the estimate ",
             Style::default().fg(Color::DarkGray),
         )),
         chunks[2],
