@@ -25,9 +25,6 @@ use crossterm::event::{
     KeyModifiers,
 };
 use crossterm::execute;
-use crossterm::terminal::{
-    disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
-};
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::style::{Color, Style};
@@ -430,25 +427,28 @@ pub fn run(task: &Task, save: &mut Saver<'_>) -> Result<()> {
             "the editor requires a TTY; pass field args instead, e.g. `task add Buy milk 30m` or `task edit <id> c:a`".into(),
         ));
     }
-    enable_raw_mode().map_err(Error::Io)?;
-    let mut stdout = io::stdout();
+    // Share the alternate screen with a possibly-already-open main TUI so opening the
+    // editor doesn't flicker. `enter`/`leave` are balanced regardless of how the run
+    // goes, so we never leak the screen.
+    crate::screen::enter()?;
+    let result = run_on_screen(task, save);
+    crate::screen::leave();
+    result
+}
+
+fn run_on_screen(task: &Task, save: &mut Saver<'_>) -> Result<()> {
+    let backend = CrosstermBackend::new(io::stdout());
+    let mut terminal = Terminal::new(backend).map_err(Error::Io)?;
+    // The alternate screen is shared (see `screen`), so a main TUI underneath may have
+    // left its rows on it. This fresh terminal diffs against an empty buffer and would
+    // skip the editor's blank cells, letting that text show through — clear once so the
+    // first draw paints over a blank screen instead of on top of the list.
+    terminal.clear().map_err(Error::Io)?;
     // Bracketed paste makes the terminal deliver a paste as one `Event::Paste` instead
     // of a stream of keystrokes, so a long URL arrives whole rather than partially.
-    execute!(stdout, EnterAlternateScreen, EnableBracketedPaste).map_err(Error::Io)?;
-
-    let backend = CrosstermBackend::new(stdout);
-    let mut terminal = Terminal::new(backend).map_err(Error::Io)?;
-
+    let _ = execute!(io::stdout(), EnableBracketedPaste);
     let result = run_loop(&mut terminal, task, save);
-
-    let _ = disable_raw_mode();
-    let _ = execute!(
-        terminal.backend_mut(),
-        DisableBracketedPaste,
-        LeaveAlternateScreen
-    );
-    let _ = terminal.show_cursor();
-
+    let _ = execute!(io::stdout(), DisableBracketedPaste);
     result
 }
 
