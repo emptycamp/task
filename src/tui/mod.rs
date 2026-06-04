@@ -353,50 +353,14 @@ fn edit_existing(
 }
 
 /// Returns the id of the created task, or `None` if the editor was cancelled
-/// before anything was saved (so the caller can move the cursor onto it).
+/// before anything was saved (so the caller can move the cursor onto it). Shares the
+/// form path with `task add` (no args) via `commands::add::run_form`.
 fn add_new(
     store: &mut Store,
     clock: &dyn Clock,
     editor: &dyn TaskEditor,
 ) -> Result<Option<TaskId>> {
-    let now = clock.now();
-    let next_ord = store.next_active_ord(Category::B)?;
-    let template = Task {
-        id: 0,
-        text: String::new(),
-        category: Category::B,
-        ord: next_ord,
-        est_secs: 1800,
-        status: Status::Active,
-        created_at: now,
-        updated_at: now,
-        completed_at: None,
-        deleted_at: None,
-    };
-    let mut baseline: Option<Task> = None;
-    {
-        let mut save = |proposed: Task| -> Result<Task> {
-            match &baseline {
-                None => {
-                    let mut t = proposed;
-                    t.id = store.next_id()?;
-                    let created = store.add_task_with_revert(t, clock)?;
-                    baseline = Some(created.clone());
-                    Ok(created)
-                }
-                Some(prev) => {
-                    if &proposed == prev {
-                        return Ok(proposed);
-                    }
-                    store.update_task_with_revert(prev.clone(), proposed.clone(), clock)?;
-                    baseline = Some(proposed.clone());
-                    Ok(proposed)
-                }
-            }
-        };
-        editor.edit(&template, &mut save)?;
-    }
-    Ok(baseline.map(|t| t.id))
+    Ok(crate::commands::add::run_form(store, clock, editor)?.map(|t| t.id))
 }
 
 fn refresh_tasks(app: &mut App, store: &Store) -> Result<()> {
