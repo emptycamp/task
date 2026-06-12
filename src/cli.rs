@@ -123,7 +123,7 @@ Examples:
 ")]
     Delete { id: TaskId },
     /// Mark a task as completed.
-    #[command(aliases = ["done", "finish", "finished", "close"])]
+    #[command(aliases = ["c", "done", "finish", "finished", "close"])]
     #[command(long_about = "\
 Mark a task as completed.
 
