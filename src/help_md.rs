@@ -54,7 +54,7 @@ fn canonicalize(parent: &[String], token: &str) -> Option<String> {
             "list" | "ls" => Some("list".into()),
             "edit" | "e" | "update" | "modify" | "change" | "set" => Some("edit".into()),
             "delete" | "del" | "remove" | "rm" | "discard" | "trash" => Some("delete".into()),
-            "complete" | "done" | "finish" | "finished" | "close" => Some("complete".into()),
+            "complete" | "c" | "done" | "finish" | "finished" | "close" => Some("complete".into()),
             "info" | "show" | "view" | "details" => Some("info".into()),
             "open" | "o" | "launch" => Some("open".into()),
             "clear" | "wipe" | "nuke" | "reset" => Some("clear".into()),
